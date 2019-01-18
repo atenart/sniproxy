@@ -35,9 +35,11 @@ func (l *Lexer) Load(input io.Reader) {
 
 // Loads for the next token in Lexer.token. A token is delimited by whitespaces,
 // unless it starts with a quote ("). The rest of a line is dropped if an hash
-// (#) is read.
+// (#) is read. Values separated by a comma (,) are considered being members of
+// a list and will end up in the same uniq token; it's up to the upper layer to
+// split them. Commas (,) can be followed by spaces or new lines.
 func (l *Lexer) Next() bool {
-	var comment, quote bool
+	var comment, quote, list bool
 	var val []rune
 
 	finalize := func() bool {
@@ -64,13 +66,20 @@ func (l *Lexer) Next() bool {
 
 		// Handle spaces.
 		if unicode.IsSpace(ch) {
+			// Carriage return is discarded.
+			if ch == '\r' {
+				continue
+			}
 			if ch == '\n' {
 				if quote {
+					// Unexpected EOL. We should handle this
+					// with a real error being reported.
 					return false
 				}
 				comment = false
 			}
-			if !quote && len(val) > 0 {
+			if !quote && !list && len(val) > 0 {
+				list = false
 				return finalize()
 			}
 			continue
@@ -90,6 +99,14 @@ func (l *Lexer) Next() bool {
 		if len(val) == 0 && ch == '"' {
 			quote = true
 			continue
+		}
+
+		// Understand lists
+		if ch == ',' {
+			list = true
+		} else {
+			// Next rune isn't a space, reset the list state.
+			list = false
 		}
 
 		val = append(val, ch)
