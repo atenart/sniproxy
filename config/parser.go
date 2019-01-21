@@ -20,7 +20,6 @@ package config
 // is itself a block (with no label).
 type Block struct {
 	label      string
-	nest	   uint
 	directives []*Directive
 	blocks     []*Block
 }
@@ -31,13 +30,13 @@ type Directive struct {
 
 // Converts a configuration block into a Block, which is used later for the
 // actual parsing of directives.
-func parse(l *Lexer, nest uint) *Block {
-	b := &Block{ label: l.Val(), nest: nest }
+func newBlock(l *Lexer) *Block {
+	b := &Block{ label: l.Val() }
 
 	for l.NextLine() {
 		// Start of a new block.
 		if l.NextVal() == "{" {
-			b.blocks = append(b.blocks, parse(l, nest + 1))
+			b.blocks = append(b.blocks, newBlock(l))
 			continue
 		}
 
@@ -47,14 +46,14 @@ func parse(l *Lexer, nest uint) *Block {
 		}
 
 		// Not a block, it's a directive. parse the current line.
-		b.directives = append(b.directives, parseDirective(l))
+		b.directives = append(b.directives, newDirective(l))
 	}
 
 	return b
 }
 
 // Parse a directive and store it into a Directive.
-func parseDirective(l *Lexer) *Directive {
+func newDirective(l *Lexer) *Directive {
 	d := &Directive{ directive: l.Val() }
 
 	// Retrieve all the arguments on the current line.
