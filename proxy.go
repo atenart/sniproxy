@@ -16,13 +16,56 @@
 package main
 
 import (
+	"io"
+	"log"
+	"net"
+
 	"github.com/atenart/sniproxy/config"
 )
 
+// Represents the proxy itself.
 type Proxy struct {
 	Config config.Config
 }
 
+// Listens and servce the connexions.
 func (p *Proxy) ListenAndServe(bind string) error {
+	l, err := net.Listen("tcp", bind)
+	if err != nil {
+		return err
+	}
+	defer l.Close()
+
+	// Accept connexions and handle them to a go routine.
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return err
+		}
+
+		go p.dispatchConn(conn)
+	}
+
 	return nil
+}
+
+// Dispatch a net.Conn. This cannot fail.
+func (p *Proxy) dispatchConn(conn net.Conn) {
+	defer conn.Close()
+
+	backend, err := p.Match(conn)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	upstream, err := net.Dial("tcp", backend)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer upstream.Close()
+
+	go io.Copy(upstream, conn)
+	io.Copy(conn, upstream)
 }
