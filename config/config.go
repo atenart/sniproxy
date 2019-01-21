@@ -17,11 +17,13 @@ package config
 
 import (
 	"os"
+	"strings"
 )
 
 type Config struct {
 }
 
+// Reads a configuration file and tranforms it into a Config struct.
 func (c *Config) ReadFile(file string) error {
 	f, err := os.Open(file)
 	if err != nil {
@@ -29,12 +31,27 @@ func (c *Config) ReadFile(file string) error {
 	}
 	defer f.Close()
 
-	lex := &Lexer{}
-	lex.Load(f)
+	l := newLexer(f)
+	block := parse(&l, 0)
 
-	for lex.Next() {
-		println(lex.token)
-	}
+	dump(block)
 
 	return nil
+}
+
+// Debug function to dump a block, its directives and its sub-blocks.
+func dump(b *Block) {
+	prefix := strings.Repeat("\t", int(b.nest))
+
+	println(prefix + b.label)
+	for _, d := range(b.directives) {
+		print(prefix + "\t" + d.directive)
+		for _, a := range(d.args) {
+			print(" " + a)
+		}
+		println()
+	}
+	for _, sub := range(b.blocks) {
+		dump(sub)
+	}
 }
