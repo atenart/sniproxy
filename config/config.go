@@ -24,13 +24,13 @@ import (
 
 // Config holds the entire current configuration.
 type Config struct {
-	routes  []*Route
+	Routes  []*Route
 }
 
 // Route represents a route between matched domains and a backend.
 type Route struct {
-	domains []*regexp.Regexp
-	backend string
+	Domains []*regexp.Regexp
+	Backend string
 }
 
 // Reads a configuration file and tranforms it into a Config struct.
@@ -51,6 +51,7 @@ func (c *Config) ReadFile(file string) error {
 func (c *Config) parse(root *Block) {
 	for _, block := range(root.blocks) {
 		route := &Route{}
+		c.Routes = append(c.Routes, route)
 
 		domains := strings.Split(block.label, ",")
 		for _, domain := range(domains) {
@@ -59,7 +60,7 @@ func (c *Config) parse(root *Block) {
 				log.Fatal("Invalid domain: " + domain)
 			}
 
-			route.domains = append(route.domains, rgp)
+			route.Domains = append(route.Domains, rgp)
 		}
 
 		for _, dir := range(block.directives) {
@@ -68,7 +69,7 @@ func (c *Config) parse(root *Block) {
 				if len(dir.args) == 0 {
 					log.Fatal("Invalid backend directive.")
 				}
-				route.backend = dir.args[0]
+				route.Backend = dir.args[0]
 				break
 			default:
 				continue

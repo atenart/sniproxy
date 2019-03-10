@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -55,7 +56,13 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 	defer conn.Close()
 
 	var buf bytes.Buffer
-	backend, err := p.Match(io.TeeReader(conn, &buf))
+	sni, err := extractSNI(io.TeeReader(conn, &buf))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	backend, err := p.Match(sni)
 	if err != nil {
 		log.Println(err)
 		return
@@ -73,11 +80,16 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 }
 
 // Matches a connexion to a backend.
-func (p *Proxy) Match(r io.Reader) (string, error) {
-	sni, err := extractSNI(r)
-	if err != nil {
-		return "", err
+func (p *Proxy) Match(sni string) (string, error) {
+	// Loop over each route described in the configuration.
+	for _, route := range p.Config.Routes {
+		// Loop over each domain of a given route.
+		for _, domain := range route.Domains {
+			if domain.MatchString(sni) {
+				return route.Backend, nil
+			}
+		}
 	}
 
-	return sni, nil
+	return "", fmt.Errorf("No route matching the requested domain (%s)", sni)
 }
