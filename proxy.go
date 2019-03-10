@@ -75,6 +75,12 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 	}
 	defer upstream.Close()
 
+	// Replay the handshake we read.
+	if _, err := io.Copy(upstream, &buf); err != nil {
+		log.Println("Failed to replay handshake to %s", backend)
+		return
+	}
+
 	go io.Copy(upstream, conn)
 	io.Copy(conn, upstream)
 }
