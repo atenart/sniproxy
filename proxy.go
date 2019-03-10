@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"net"
@@ -28,7 +29,7 @@ type Proxy struct {
 	Config config.Config
 }
 
-// Listens and servce the connexions.
+// Listen and serve the connexions.
 func (p *Proxy) ListenAndServe(bind string) error {
 	l, err := net.Listen("tcp", bind)
 	if err != nil {
@@ -53,7 +54,8 @@ func (p *Proxy) ListenAndServe(bind string) error {
 func (p *Proxy) dispatchConn(conn net.Conn) {
 	defer conn.Close()
 
-	backend, err := p.Match(conn)
+	var buf bytes.Buffer
+	backend, err := p.Match(io.TeeReader(conn, &buf))
 	if err != nil {
 		log.Println(err)
 		return
@@ -68,4 +70,14 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 
 	go io.Copy(upstream, conn)
 	io.Copy(conn, upstream)
+}
+
+// Matches a connexion to a backend.
+func (p *Proxy) Match(r io.Reader) (string, error) {
+	sni, err := extractSNI(r)
+	if err != nil {
+		return "", err
+	}
+
+	return sni, nil
 }
