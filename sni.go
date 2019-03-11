@@ -127,7 +127,7 @@ func parseClientHello(r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("Could not read ClientHello session ID (%s)", err)
 	}
-	if len(b) < 1 || len(b) > 32 {
+	if len(b) > 32 {
 		return fmt.Errorf("ClientHello SessionID has an invalid length (%d)", len(b))
 	}
 
