@@ -17,6 +17,7 @@ package config
 
 import (
 	"log"
+	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -31,9 +32,16 @@ type Config struct {
 type Route struct {
 	Domains []*regexp.Regexp
 	Backend string
+	// Deny and Allow contain lists of IP ranges and/or addresses to
+	// whitelist or blacklist for a given route. If Allow is used, all
+	// addresses are then blocked by default.
+	// The more specific subnet takes precedence, and Deny wins over Allow
+	// in case none is more specific.
+	Deny    []*net.IPNet
+	Allow   []*net.IPNet
 }
 
-// Reads a configuration file and tranforms it into a Config struct.
+// Reads a configuration file and transforms it into a Config struct.
 func (c *Config) ReadFile(file string) error {
 	f, err := os.Open(file)
 	if err != nil {
@@ -66,14 +74,39 @@ func (c *Config) parse(root *Block) {
 		for _, dir := range(block.directives) {
 			switch dir.directive {
 			case "backend":
-				if len(dir.args) == 0 {
-					log.Fatal("Invalid backend directive.")
+				if len(dir.args) != 1 {
+					log.Fatal("Invalid backend directive")
 				}
 				route.Backend = dir.args[0]
+				break
+			case "deny":
+				if len(dir.args) != 1 {
+					log.Fatal("Invalid deny directive")
+				}
+				for _, subnet := range(strings.Split(dir.args[0], ",")) {
+					route.Deny = append(route.Deny, parseRange(subnet))
+				}
+				break
+			case "allow":
+				if len(dir.args) != 1 {
+					log.Fatal("Invalid allow directive")
+				}
+				for _, subnet := range(strings.Split(dir.args[0], ",")) {
+					route.Allow = append(route.Allow, parseRange(subnet))
+				}
 				break
 			default:
 				continue
 			}
+		}
+
+		if len(route.Allow) > 0 {
+			// When using the allow directive, we should block all
+			// other IPs. Set Deny to match all IPs.
+			_, all4, _ := net.ParseCIDR("0.0.0.0/0")
+			_, all6, _ := net.ParseCIDR("::/0")
+			route.Deny = append(route.Deny, all4)
+			route.Deny = append(route.Deny, all6)
 		}
 	}
 }
@@ -96,4 +129,25 @@ func domain2Regex(domain string) (*regexp.Regexp, error) {
 	}
 
 	return regexp.Compile(regex)
+}
+
+// Parse a subnet string.
+func parseRange(subnet string) *net.IPNet {
+	_, ipnet, err := net.ParseCIDR(subnet)
+	if err == nil {
+		return ipnet
+	}
+
+	ip := net.ParseIP(subnet)
+	if ip == nil {
+		log.Fatal("Could not parse subnet " + subnet)
+	}
+
+	// IP is an IPv4 address, its CIDR should be /32.
+	if v4 := ip.To4(); v4 != nil {
+		return &net.IPNet{ IP: ip, Mask: net.CIDRMask(32, 32) }
+	}
+
+	// IP is an IPv6 address, its CIDR should be /128.
+	return &net.IPNet{ IP: ip, Mask: net.CIDRMask(128, 128) }
 }
