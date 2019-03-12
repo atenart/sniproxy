@@ -62,13 +62,24 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 		return
 	}
 
-	backend, err := p.Match(sni)
+	route, err := p.Match(sni)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	upstream, err := net.Dial("tcp", backend)
+	// Check if the client has the right to connect to a given backend.
+	ip, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	if !clientAllowed(route, ip) {
+		log.Printf("Denied %s / %s access to %s", ip, sni, route.Backend)
+		return
+	}
+
+	upstream, err := net.Dial("tcp", route.Backend)
 	if err != nil {
 		log.Println(err)
 		return
@@ -77,27 +88,62 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
-		log.Printf("Failed to replay handshake to %s", backend)
+		log.Printf("Failed to replay handshake to %s", route.Backend)
 		return
 	}
 
-	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, backend)
+	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, route.Backend)
 
 	go io.Copy(upstream, conn)
 	io.Copy(conn, upstream)
 }
 
 // Matches a connexion to a backend.
-func (p *Proxy) Match(sni string) (string, error) {
+func (p *Proxy) Match(sni string) (*config.Route, error) {
 	// Loop over each route described in the configuration.
 	for _, route := range p.Config.Routes {
 		// Loop over each domain of a given route.
 		for _, domain := range route.Domains {
 			if domain.MatchString(sni) {
-				return route.Backend, nil
+				return route, nil
 			}
 		}
 	}
 
-	return "", fmt.Errorf("No route matching the requested domain (%s)", sni)
+	return nil, fmt.Errorf("No route matching the requested domain (%s)", sni)
+}
+
+// Check an IP against a route deny/allow rules.
+// The more specific subnet takes precedence, and Deny wins over Allow in case
+// none is more specific.
+func clientAllowed(route *config.Route, ip string) bool {
+	// Check if filtering is enabled for the route.
+	if len(route.Allow) == 0 && len(route.Deny) == 0 {
+		return true
+	}
+
+	client := net.ParseIP(ip)
+	if client == nil {
+		log.Printf("Could not parse client IP (%s), dennying access", ip)
+		return false
+	}
+
+	var cidr int = 0
+	for _, subnet := range(route.Allow) {
+		if subnet.Contains(client) {
+			sz, _ := subnet.Mask.Size()
+			if sz > cidr {
+				cidr = sz
+			}
+		}
+	}
+	for _, subnet := range(route.Deny) {
+		if subnet.Contains(client) {
+			sz, _ := subnet.Mask.Size()
+			if sz >= cidr {
+				return false
+			}
+		}
+	}
+	return true
 }
