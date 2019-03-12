@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/atenart/sniproxy/config"
 )
@@ -94,8 +95,17 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 
 	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, route.Backend)
 
-	go io.Copy(upstream, conn)
-	io.Copy(conn, upstream)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func () {
+		defer wg.Done()
+		io.Copy(upstream, conn)
+	}()
+	go func () {
+		defer wg.Done()
+		io.Copy(conn, upstream)
+	}()
+	wg.Wait()
 }
 
 // Matches a connexion to a backend.
