@@ -70,13 +70,13 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 	}
 
 	// Check if the client has the right to connect to a given backend.
-	ip, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	clientIP, clientPort, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	if !clientAllowed(route, ip) {
-		log.Printf("Denied %s / %s access to %s", ip, sni, route.Backend)
+	if !clientAllowed(route, clientIP) {
+		log.Printf("Denied %s / %s access to %s", clientIP, sni, route.Backend)
 		return
 	}
 
@@ -86,6 +86,23 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 		return
 	}
 	defer upstream.Close()
+
+	// HAProxy PROXY protocol v1 has to be used.
+	if route.SendProxy == config.ProxyV1 {
+		localIP, localPort, err := net.SplitHostPort(conn.LocalAddr().String())
+
+		inetProto := "TCP6"
+		if net.ParseIP(localIP).To4() != nil {
+			inetProto = "TCP4"
+		}
+
+		_, err = fmt.Fprintf(upstream, "PROXY %s %s %s %s %s\r\n",
+				     inetProto, clientIP, localIP, clientPort, localPort)
+		if err != nil {
+			log.Printf("Could not send the PROXY header (%s)", err)
+			return
+		}
+	}
 
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
