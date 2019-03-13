@@ -70,6 +70,10 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	// We found an SNI, reset the read deadline.
 	conn.SetReadDeadline(time.Time{})
 
+	// Send keep alive messages on the connexion.
+	conn.SetKeepAlive(true)
+	conn.SetKeepAlivePeriod(time.Minute)
+
 	route, err := p.Match(sni)
 	if err != nil {
 		log.Println(err)
