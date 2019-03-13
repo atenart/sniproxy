@@ -81,7 +81,7 @@ func parseHandshake(r io.Reader) error {
 	if header.Major != 3 {
 		return fmt.Errorf("TLS version not supported (%d.%d)", header.Major, header.Minor)
 	}
-	switch(header.Minor) {
+	switch (header.Minor) {
 	default:
 		return fmt.Errorf("TLS version not supported (%d.%d)", header.Major, header.Minor)
 	case 1,2,3:

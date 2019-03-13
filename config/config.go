@@ -111,6 +111,13 @@ func (c *Config) parse(root *Block) {
 				}
 				route.SendProxy = ProxyV1
 				break
+			// HAProxy PROXY protocol (v2)
+			case "send-proxy-v2":
+				if len(dir.args) > 0 {
+					log.Fatal("Invalid send-proxy directive")
+				}
+				route.SendProxy = ProxyV2
+				break
 			default:
 				continue
 			}

@@ -83,19 +83,10 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	}
 	defer upstream.Close()
 
-	// HAProxy PROXY protocol v1 has to be used.
-	if route.SendProxy == config.ProxyV1 {
-		localIP, localPort, err := net.SplitHostPort(conn.LocalAddr().String())
-
-		inetProto := "TCP6"
-		if net.ParseIP(localIP).To4() != nil {
-			inetProto = "TCP4"
-		}
-
-		_, err = fmt.Fprintf(upstream, "PROXY %s %s %s %s %s\r\n",
-				     inetProto, clientIP, localIP, clientPort, localPort)
-		if err != nil {
-			log.Printf("Could not send the PROXY header (%s)", err)
+	// Check if the HAProxy PROXY protocol header has to be sent.
+	if route.SendProxy != config.ProxyNone {
+		if err := proxyHeader(route, conn, upstream); err != nil {
+			log.Print(err)
 			return
 		}
 	}
