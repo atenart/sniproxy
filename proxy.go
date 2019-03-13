@@ -22,6 +22,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/atenart/sniproxy/config"
 )
@@ -56,12 +57,18 @@ func (p *Proxy) ListenAndServe(bind string) error {
 func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	defer conn.Close()
 
+	// Set a deadline for reading the TLS handshake.
+	conn.SetReadDeadline(time.Now().Add(3*time.Second))
+
 	var buf bytes.Buffer
 	sni, err := extractSNI(io.TeeReader(conn, &buf))
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
+	// We found an SNI, reset the read deadline.
+	conn.SetReadDeadline(time.Time{})
 
 	route, err := p.Match(sni)
 	if err != nil {
@@ -76,7 +83,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 		return
 	}
 
-	upstream, err := net.Dial("tcp", route.Backend)
+	upstream, err := net.DialTimeout("tcp", route.Backend, 3*time.Second)
 	if err != nil {
 		log.Println(err)
 		return
