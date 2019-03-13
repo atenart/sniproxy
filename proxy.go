@@ -46,14 +46,14 @@ func (p *Proxy) ListenAndServe(bind string) error {
 			return err
 		}
 
-		go p.dispatchConn(conn)
+		go p.dispatchConn(conn.(*net.TCPConn))
 	}
 
 	return nil
 }
 
 // Dispatch a net.Conn. This cannot fail.
-func (p *Proxy) dispatchConn(conn net.Conn) {
+func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	defer conn.Close()
 
 	var buf bytes.Buffer
@@ -70,13 +70,9 @@ func (p *Proxy) dispatchConn(conn net.Conn) {
 	}
 
 	// Check if the client has the right to connect to a given backend.
-	clientIP, clientPort, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		log.Print(err)
-		return
-	}
-	if !clientAllowed(route, clientIP) {
-		log.Printf("Denied %s / %s access to %s", clientIP, sni, route.Backend)
+	client := conn.RemoteAddr().(*net.TCPAddr).IP
+	if !clientAllowed(route, client) {
+		log.Printf("Denied %s / %s access to %s", client.String(), sni, route.Backend)
 		return
 	}
 
@@ -143,21 +139,15 @@ func (p *Proxy) Match(sni string) (*config.Route, error) {
 // Check an IP against a route deny/allow rules.
 // The more specific subnet takes precedence, and Deny wins over Allow in case
 // none is more specific.
-func clientAllowed(route *config.Route, ip string) bool {
+func clientAllowed(route *config.Route, ip net.IP) bool {
 	// Check if filtering is enabled for the route.
 	if len(route.Allow) == 0 && len(route.Deny) == 0 {
 		return true
 	}
 
-	client := net.ParseIP(ip)
-	if client == nil {
-		log.Printf("Could not parse client IP (%s), dennying access", ip)
-		return false
-	}
-
 	var cidr int = 0
 	for _, subnet := range(route.Allow) {
-		if subnet.Contains(client) {
+		if subnet.Contains(ip) {
 			sz, _ := subnet.Mask.Size()
 			if sz > cidr {
 				cidr = sz
@@ -165,7 +155,7 @@ func clientAllowed(route *config.Route, ip string) bool {
 		}
 	}
 	for _, subnet := range(route.Deny) {
-		if subnet.Contains(client) {
+		if subnet.Contains(ip) {
 			sz, _ := subnet.Mask.Size()
 			if sz >= cidr {
 				return false
