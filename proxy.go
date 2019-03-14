@@ -93,13 +93,21 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	// Check if the client has the right to connect to a given backend.
 	client := conn.RemoteAddr().(*net.TCPAddr).IP
 	if !clientAllowed(route, client) {
+		alert(conn, tlsAccessDenied)
 		log.Printf("Denied %s / %s access to %s", client.String(), sni, route.Backend)
 		return
 	}
 
-	upstream, err := net.DialTimeout("tcp", route.Backend, 3*time.Second)
-	if err != nil {
-		log.Println(err)
+	upstream := func() *net.TCPConn {
+		up, err := net.DialTimeout("tcp", route.Backend, 3*time.Second)
+		if err != nil {
+			alert(conn, tlsInternalError)
+			log.Println(err)
+			return nil
+		}
+		return up.(*net.TCPConn)
+	}()
+	if upstream == nil {
 		return
 	}
 	defer upstream.Close()
