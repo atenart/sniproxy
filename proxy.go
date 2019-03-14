@@ -58,17 +58,26 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	defer conn.Close()
 
 	// Set a deadline for reading the TLS handshake.
-	conn.SetReadDeadline(time.Now().Add(3*time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil {
+		alert(conn, tlsInternalError)
+		log.Printf("Could not set a read deadline (%s)", err)
+		return
+	}
 
 	var buf bytes.Buffer
 	sni, err := extractSNI(io.TeeReader(conn, &buf))
 	if err != nil {
+		alert(conn, tlsInternalError)
 		log.Println(err)
 		return
 	}
 
 	// We found an SNI, reset the read deadline.
-	conn.SetReadDeadline(time.Time{})
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		alert(conn, tlsInternalError)
+		log.Printf("Could not clear the read deadline (%s)", err)
+		return
+	}
 
 	// Send keep alive messages on the connexion.
 	conn.SetKeepAlive(true)
@@ -76,6 +85,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 
 	route, err := p.Match(sni)
 	if err != nil {
+		alert(conn, tlsUnrecognizedName)
 		log.Println(err)
 		return
 	}
@@ -97,6 +107,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	// Check if the HAProxy PROXY protocol header has to be sent.
 	if route.SendProxy != config.ProxyNone {
 		if err := proxyHeader(route, conn, upstream); err != nil {
+			alert(conn, tlsInternalError)
 			log.Print(err)
 			return
 		}
@@ -104,6 +115,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
+		alert(conn, tlsInternalError)
 		log.Printf("Failed to replay handshake to %s", route.Backend)
 		return
 	}
@@ -121,6 +133,32 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 		io.Copy(conn, upstream)
 	}()
 	wg.Wait()
+}
+
+// TLS alert message descriptions.
+const (
+       tlsAccessDenied     = 49
+       tlsInternalError    = 80
+       tlsUnrecognizedName = 112
+)
+
+// Sends an alert message with a fatal level to the remote.
+func alert(conn *net.TCPConn, desc byte) {
+	// Craft an alert message (content type 21, TLS version 3.x, level: 2).
+	message := bytes.NewBuffer([]byte{21, 3, 0, 0, 2, 2})
+
+	// Set the alert description.
+	message.WriteByte(desc)
+
+	// Set a write timeout before sending the alert.
+	if err := conn.SetWriteDeadline(time.Now().Add(3*time.Second)); err != nil {
+		log.Printf("Could not set a write deadline for the alert message (%s)", err)
+		return
+	}
+
+	if _, err := message.WriteTo(conn); err != nil {
+		log.Printf("Failed to send an alert message (%s)", err)
+	}
 }
 
 // Matches a connexion to a backend.
