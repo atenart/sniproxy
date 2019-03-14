@@ -79,10 +79,6 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 		return
 	}
 
-	// Send keep alive messages on the connexion.
-	conn.SetKeepAlive(true)
-	conn.SetKeepAlivePeriod(time.Minute)
-
 	route, err := p.Match(sni)
 	if err != nil {
 		alert(conn, tlsUnrecognizedName)
@@ -128,10 +124,9 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 		return
 	}
 
-	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, route.Backend)
-
 	var wg sync.WaitGroup
 	wg.Add(2)
+
 	go func () {
 		defer wg.Done()
 		io.Copy(upstream, conn)
@@ -140,6 +135,15 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 		defer wg.Done()
 		io.Copy(conn, upstream)
 	}()
+
+	// Send keep alive messages to both the client and the backend.
+	conn.SetKeepAlive(true)
+	conn.SetKeepAlivePeriod(time.Minute)
+	upstream.SetKeepAlive(true)
+	upstream.SetKeepAlivePeriod(time.Minute)
+
+	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, route.Backend)
+
 	wg.Wait()
 }
 
