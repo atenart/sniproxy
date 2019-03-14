@@ -1,8 +1,8 @@
 # SNIProxy
 
-_SNIProxy_ is an TLS proxy which, based on the
+_SNIProxy_ is a TLS proxy which, based on the
 [TLS SNI](https://en.wikipedia.org/wiki/Server_Name_Indication) contained in TLS
-handshakes, routes TCP connexions to backends. The proxy does not need the TLS
+handshakes, routes TCP connections to backends. The proxy does not need the TLS
 encryption keys and can not decrypt the TLS traffic.
 
 _SNIProxy_ is meant to be simple to use and configure, with sane defaults and
@@ -16,7 +16,7 @@ $ docker run --name sniproxy -p 443:443/tcp \
 	atenart/sniproxy:latest -conf sniproxy.conf
 ```
 
-_SNIProxy_ can be bind to a custom address or port using the `-bind` command
+_SNIProxy_ can be bound to a custom address or port using the `-bind` command
 line option.
 
 ```shell
@@ -28,8 +28,8 @@ $ docker run --name sniproxy -p 443:443/tcp \
 ## Configuration file
 
 The configuration is made of a list of blocks. Each block represents a route. A
-route if defined by a list of hostnames, a backend to route the connexion to and
-optional parameters:
+route is defined by a list of hostnames, a backend to route the connection to
+and optional parameters:
 
 ```
 hostname0, hostname1, … {
@@ -76,11 +76,11 @@ blog.example.net {
 }
 ```
 
-_SNIProxy_ also has the ability to block or allow connexions based on the client
-IP address. Single IPs or subnets (using a CIDR range) are supported.
+_SNIProxy_ also has the ability to block or allow connections based on the
+client IP address. Single IPs or subnets (using a CIDR range) are supported.
 
 ```
-# Deny a single client. All other connexions will be routed to the backend.
+# Deny a single client. All other connections will be routed to the backend.
 example.net {
 	backend 1.2.3.4:443
 	deny 10.0.0.42
@@ -108,7 +108,7 @@ example.net {
 	deny 192.168.0.0/24
 }
 
-# The most specific range wins.
+# The most specific range wins (if the range is the same, deny wins).
 example.net {
 	backend 1.2.3.4:443
 	# Deny 192.168.0.0/22 except for 192.168.0.2 and 192.168.1.8/29.

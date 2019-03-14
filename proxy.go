@@ -32,7 +32,7 @@ type Proxy struct {
 	Config config.Config
 }
 
-// Listen and serve the connexions.
+// Listen and serve the connections.
 func (p *Proxy) ListenAndServe(bind string) error {
 	l, err := net.Listen("tcp", bind)
 	if err != nil {
@@ -40,7 +40,7 @@ func (p *Proxy) ListenAndServe(bind string) error {
 	}
 	defer l.Close()
 
-	// Accept connexions and handle them to a go routine.
+	// Accept connections and handle them to a go routine.
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -173,7 +173,7 @@ func alert(conn *net.TCPConn, desc byte) {
 	}
 }
 
-// Matches a connexion to a backend.
+// Matches a connection to a backend.
 func (p *Proxy) Match(sni string) (*config.Route, error) {
 	// Loop over each route described in the configuration.
 	for _, route := range p.Config.Routes {
