@@ -32,6 +32,12 @@ type Proxy struct {
 	Config config.Config
 }
 
+// Represents a connection being routed.
+type Conn struct {
+	*net.TCPConn
+	Config *config.Config
+}
+
 // Listen and serve the connections.
 func (p *Proxy) ListenAndServe(bind string) error {
 	l, err := net.Listen("tcp", bind)
@@ -42,63 +48,68 @@ func (p *Proxy) ListenAndServe(bind string) error {
 
 	// Accept connections and handle them to a go routine.
 	for {
-		conn, err := l.Accept()
+		c, err := l.Accept()
 		if err != nil {
 			return err
 		}
 
-		go p.dispatchConn(conn.(*net.TCPConn))
+		conn := &Conn{
+			TCPConn: c.(*net.TCPConn),
+			Config: &p.Config,
+		}
+
+		go conn.dispatch()
 	}
 
 	return nil
 }
 
 // Dispatch a net.Conn. This cannot fail.
-func (p *Proxy) dispatchConn(conn *net.TCPConn) {
+func (conn *Conn) dispatch() {
 	defer conn.Close()
 
 	// Set a deadline for reading the TLS handshake.
 	if err := conn.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil {
-		alert(conn, tlsInternalError)
-		log.Printf("Could not set a read deadline (%s)", err)
+		conn.alert(tlsInternalError)
+		conn.logf("Could not set a read deadline (%s)", err)
 		return
 	}
 
 	var buf bytes.Buffer
 	sni, err := extractSNI(io.TeeReader(conn, &buf))
 	if err != nil {
-		alert(conn, tlsInternalError)
-		log.Println(err)
+		conn.alert(tlsInternalError)
+		conn.log(err)
 		return
 	}
 
 	// We found an SNI, reset the read deadline.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		alert(conn, tlsInternalError)
-		log.Printf("Could not clear the read deadline (%s)", err)
+		conn.alert(tlsInternalError)
+		conn.logf("Could not clear the read deadline (%s)", err)
 		return
 	}
 
-	route, err := p.Match(sni)
+	route, err := conn.Match(sni)
 	if err != nil {
-		alert(conn, tlsUnrecognizedName)
-		log.Println(err)
+		conn.alert(tlsUnrecognizedName)
+		conn.log(err)
 		return
 	}
 
 	// Check if the client has the right to connect to a given backend.
 	client := conn.RemoteAddr().(*net.TCPAddr).IP
 	if !clientAllowed(route, client) {
-		alert(conn, tlsAccessDenied)
-		log.Printf("Denied %s / %s access to %s", client.String(), sni, route.Backend)
+		conn.alert(tlsAccessDenied)
+		conn.logf("Denied %s / %s access to %s", client.String(), sni, route.Backend)
 		return
 	}
 
 	upstream := func() *net.TCPConn {
 		up, err := net.DialTimeout("tcp", route.Backend, 3*time.Second)
 		if err != nil {
-			alert(conn, tlsInternalError)
-			log.Println(err)
+			conn.alert(tlsInternalError)
+			conn.log(err)
 			return nil
 		}
 		return up.(*net.TCPConn)
@@ -111,7 +122,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	// Check if the HAProxy PROXY protocol header has to be sent.
 	if route.SendProxy != config.ProxyNone {
 		if err := proxyHeader(route, conn, upstream); err != nil {
-			alert(conn, tlsInternalError)
+			conn.alert(tlsInternalError)
 			log.Print(err)
 			return
 		}
@@ -119,8 +130,8 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
-		alert(conn, tlsInternalError)
-		log.Printf("Failed to replay handshake to %s", route.Backend)
+		conn.alert(tlsInternalError)
+		conn.logf("Failed to replay handshake to %s", route.Backend)
 		return
 	}
 
@@ -129,11 +140,11 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 
 	go func () {
 		defer wg.Done()
-		io.Copy(upstream, conn)
+		io.Copy(upstream, conn.TCPConn)
 	}()
 	go func () {
 		defer wg.Done()
-		io.Copy(conn, upstream)
+		io.Copy(conn.TCPConn, upstream)
 	}()
 
 	// Send keep alive messages to both the client and the backend.
@@ -142,7 +153,7 @@ func (p *Proxy) dispatchConn(conn *net.TCPConn) {
 	upstream.SetKeepAlive(true)
 	upstream.SetKeepAlivePeriod(time.Minute)
 
-	log.Printf("Routing %s / %s to %s", conn.RemoteAddr(), sni, route.Backend)
+	conn.logf("Routing %s to %s", sni, route.Backend)
 
 	wg.Wait()
 }
@@ -155,7 +166,7 @@ const (
 )
 
 // Sends an alert message with a fatal level to the remote.
-func alert(conn *net.TCPConn, desc byte) {
+func (conn *Conn) alert(desc byte) {
 	// Craft an alert message (content type 21, TLS version 3.x, level: 2).
 	message := bytes.NewBuffer([]byte{21, 3, 0, 0, 2, 2})
 
@@ -164,19 +175,19 @@ func alert(conn *net.TCPConn, desc byte) {
 
 	// Set a write timeout before sending the alert.
 	if err := conn.SetWriteDeadline(time.Now().Add(3*time.Second)); err != nil {
-		log.Printf("Could not set a write deadline for the alert message (%s)", err)
+		conn.logf("Could not set a write deadline for the alert message (%s)", err)
 		return
 	}
 
 	if _, err := message.WriteTo(conn); err != nil {
-		log.Printf("Failed to send an alert message (%s)", err)
+		conn.logf("Failed to send an alert message (%s)", err)
 	}
 }
 
 // Matches a connection to a backend.
-func (p *Proxy) Match(sni string) (*config.Route, error) {
+func (conn *Conn) Match(sni string) (*config.Route, error) {
 	// Loop over each route described in the configuration.
-	for _, route := range p.Config.Routes {
+	for _, route := range conn.Config.Routes {
 		// Loop over each domain of a given route.
 		for _, domain := range route.Domains {
 			if domain.MatchString(sni) {
