@@ -23,6 +23,10 @@ import (
 
 // Extracts an SNI from a TLS handshake.
 func extractSNI(r io.Reader) (string, error) {
+	if err := parseRecord(r); err != nil {
+		return "", err
+	}
+
 	if err := parseHandshake(r); err != nil {
 		return "", err
 	}
@@ -58,54 +62,66 @@ func extractSNI(r io.Reader) (string, error) {
 	return "", nil
 }
 
-// Parse a TLS handshake.
-func parseHandshake(r io.Reader) error {
-	var header struct {
+// Parse a TLS Plaintext record.
+func parseRecord(r io.Reader) error {
+	var record struct {
 		Type          uint8
 		Major, Minor  uint8
 		Length        uint16
-		MessageType   uint8
-		MessageLength [3]byte
 	}
-	if err := binary.Read(r, binary.BigEndian, &header); err != nil {
-		return fmt.Errorf("Could not read TLS header (%s)", err)
+	if err := binary.Read(r, binary.BigEndian, &record); err != nil {
+		return fmt.Errorf("Could not read TLS handshake (%s)", err)
 	}
 
-	// Check if header type is 22, aka handshake.
-	if header.Type != 22 {
-		return fmt.Errorf("Not a TLS handshake")
+	// Check if record type is 22, aka handshake.
+	if record.Type != 22 {
+		return fmt.Errorf("Record is not a TLS handshake")
 	}
 
 	// Checks the TLS version is supported:
-	// 3.1: TLS 1.0, 3.2: TLS 1.1, 3.3: TLS 1.2, 3.4: TLS 1.3
-	if header.Major != 3 {
-		return fmt.Errorf("TLS version not supported (%d.%d)", header.Major, header.Minor)
+	// 3.1: TLS 1.0, 3.2: TLS 1.1, 3.3: TLS 1.2 & TLS 1.3
+	if record.Major != 3 {
+		return fmt.Errorf("TLS version not supported (%d.%d)", record.Major, record.Minor)
 	}
-	switch (header.Minor) {
+	switch (record.Minor) {
 	default:
-		return fmt.Errorf("TLS version not supported (%d.%d)", header.Major, header.Minor)
+		return fmt.Errorf("TLS version not supported (%d.%d)", record.Major, record.Minor)
 	case 1,2,3:
 	}
 
 	// Check the handshake does not exceed the max authorized.
-	if header.Length > (16 * 1024) {
-		return fmt.Errorf("TLS handshake length exceed maximum (%d > 16k)", header.Length)
+	if record.Length > (16 * 1024) {
+		return fmt.Errorf("TLS record length exceed maximum (%d > 2^14)", record.Length)
+	}
+
+	return nil
+}
+
+// Parse a TLS handshake message.
+func parseHandshake(r io.Reader) error {
+	var handshake struct {
+		MessageType   uint8
+		MessageLength [3]byte
+	}
+	if err := binary.Read(r, binary.BigEndian, &handshake); err != nil {
+		return fmt.Errorf("Could not read TLS message header (%s)", err)
 	}
 
 	// Check if the message type is ClientHello.
-	if header.MessageType != 1 {
-		return fmt.Errorf("TLS handshake is not a ClientHello message (%d)", header.MessageType)
+	if handshake.MessageType != 1 {
+		return fmt.Errorf("TLS handshake is not a ClientHello message (%d)", handshake.MessageType)
 	}
 
-	// We do not check the message length as we'll try to read it fully anyway.
+	// We do not check the handshake length as we'll try to read it fully anyway.
+
 	return nil
 }
 
 // Parse a TLS ClientHello message.
 func parseClientHello(r io.Reader) error {
 	var hello struct {
-		Version            uint16
-		Random             [32]byte
+		Version uint16
+		Random  [32]byte
 	}
 	if err := binary.Read(r, binary.BigEndian, &hello); err != nil {
 		return fmt.Errorf("Could not read TLS ClientHello message (%s)", err)
@@ -160,11 +176,19 @@ func parseSNI(b []byte) (string, error) {
 	}
 
 	length := binary.BigEndian.Uint16(b[:2])
-	b = b[2:length]
+	if int(length) > len(b[2:]) {
+		return "", fmt.Errorf("SNI extension is too short.")
+	}
+
+	b = b[2:2+length]
 
 	for len(b) >= 3 {
 		nameType := b[0]
 		vectLength := binary.BigEndian.Uint16(b[1:3])
+		if int(vectLength) > len(b[3:]) {
+			return "", fmt.Errorf("SNI vector is too short.")
+		}
+
 		if nameType != 0 {
 			b = b[3+vectLength:]
 			continue
