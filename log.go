@@ -17,13 +17,20 @@ package main
 
 import (
 	"fmt"
+	"flag"
 	"log"
 )
-
+var (
+	use_log = flag.String("log", "0", "set 1 to use log")
+)
 func (conn *Conn) logf(format string, v ...interface{}) {
-	log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprintf(format, v...))
+	if *use_log == "1" {
+		log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprintf(format, v...))
+	}
 }
 
 func (conn *Conn) log(v ...interface{}) {
-	log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprint(v...))
+	if *use_log == "1" {
+		log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprint(v...))
+	}
 }
