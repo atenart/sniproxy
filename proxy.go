@@ -134,13 +134,21 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
-	done := make(chan int, 1)
+	done := make(chan int, 2)
 	go func () {
-		io.Copy(upstream, conn.TCPConn)
+		if _, err := io.Copy(upstream, conn.TCPConn); err != nil {
+			conn.logf("Error copying to %s (%s): %s", conn.RemoteAddr(), sni, err)
+		}
+		upstream.CloseRead()
+		conn.CloseWrite()
 		done<- 1
 	}()
 	go func () {
-		io.Copy(conn.TCPConn, upstream)
+		if _, err := io.Copy(conn.TCPConn, upstream); err != nil {
+			conn.logf("Error copying to %s (%s): %s", route.Backend, sni, err)
+		}
+		conn.CloseRead()
+		upstream.CloseWrite()
 		done<- 1
 	}()
 
