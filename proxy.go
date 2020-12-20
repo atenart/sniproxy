@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/atenart/sniproxy/config"
@@ -134,22 +135,24 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
-	done := make(chan int, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func () {
+		defer wg.Done()
 		if _, err := io.Copy(upstream, conn.TCPConn); err != nil {
 			conn.logf("Error copying to %s (%s): %s", conn.RemoteAddr(), sni, err)
 		}
 		upstream.CloseRead()
 		conn.CloseWrite()
-		done<- 1
 	}()
 	go func () {
+		defer wg.Done()
 		if _, err := io.Copy(conn.TCPConn, upstream); err != nil {
 			conn.logf("Error copying to %s (%s): %s", route.Backend, sni, err)
 		}
 		conn.CloseRead()
 		upstream.CloseWrite()
-		done<- 1
 	}()
 
 	// Send keep alive messages to both the client and the backend.
@@ -159,7 +162,8 @@ func (conn *Conn) dispatch() {
 	upstream.SetKeepAlivePeriod(time.Minute)
 
 	conn.logf("Routing %s to %s", sni, route.Backend)
-	<-done
+
+	wg.Wait()
 }
 
 // TLS alert message descriptions.
