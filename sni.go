@@ -21,18 +21,19 @@ import (
 	"io"
 )
 
-// Extracts an SNI from a TLS handshake.
-func extractSNI(r io.Reader) (string, error) {
+// Extracts required information from a TLS handshake.
+// Returns the SNI and checks for acme-tls.
+func extractInfo(r io.Reader) (string, bool, error) {
 	if err := parseRecord(r); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	if err := parseHandshake(r); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	if err := parseClientHello(r); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	// Parse the TLS extension, looking for a server name indication.
@@ -40,26 +41,39 @@ func extractSNI(r io.Reader) (string, error) {
 	if err != nil {
 		// No extension (not an error).
 		if err == io.EOF {
-			return "", nil
+			err = nil
 		}
-		return "", err
+		return "", false, err
 	}
+
+	sni := ""
+	acme := false
 
 	// Loop over the TLS extensions.
 	for len(b) >= 4 {
 		extType := binary.BigEndian.Uint16(b[:2])
 		length := binary.BigEndian.Uint16(b[2:4])
+		b = b[4:]
 
-		// Check if the extension is an SNI one.
-		if extType != 0 {
-			b = b[4+length :]
-			continue
+		switch(extType) {
+		// SNI.
+		case 0:
+			sni, err = parseSNI(b[:length])
+			if err != nil {
+				break
+			}
+		// ALPN.
+		case 16:
+			acme, err = parseACME(b[:length])
+			if err != nil {
+				break
+			}
 		}
 
-		return parseSNI(b[4 : 4+length])
+		b = b[length:]
 	}
 
-	return "", nil
+	return sni, acme, err
 }
 
 // Parse a TLS Plaintext record.
@@ -210,7 +224,7 @@ func parseVector(r io.Reader, l uint) ([]byte, error) {
 		if err == io.EOF {
 			return nil, err
 		}
-		return nil, fmt.Errorf("Could not read the vector lenght (%s)", err)
+		return nil, fmt.Errorf("Could not read the vector length (%s)", err)
 	}
 
 	var length uint = 0
@@ -228,4 +242,35 @@ func parseVector(r io.Reader, l uint) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// Parse an ALPN extension looking for acme-tls/1.
+func parseACME(b []byte) (bool, error) {
+	if len(b) < 2 {
+		return false, fmt.Errorf("ALPN extension is empty.")
+	}
+
+	length := binary.BigEndian.Uint16(b[:2])
+	if int(length) > len(b[2:]) {
+		return false, fmt.Errorf("ALPN extension is too short.")
+	}
+
+	b = b[2:2+length]
+
+	for len(b) > 2 {
+		stringLen := int(b[0])
+
+		b = b[1:]
+		if stringLen == 0 || stringLen > len(b) {
+			return false, fmt.Errorf("ALPN string length overflowed")
+		}
+
+		if string(b[:stringLen]) == "acme-tls/1" {
+			return true, nil
+		}
+
+		b = b[stringLen:]
+	}
+
+	return false, nil
 }

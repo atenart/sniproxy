@@ -120,3 +120,12 @@ example.net {
 	allow 192.168.1.8/29, 192.168.0.2
 }
 ```
+
+_SNIProxy_ can use a different dedicated backend for ACME TLS.
+
+```
+example.net {
+	backend 1.2.3.4:443
+	acme 1.2.3.5:443
+}
+```

@@ -76,7 +76,7 @@ func (conn *Conn) dispatch() {
 	}
 
 	var buf bytes.Buffer
-	sni, err := extractSNI(io.TeeReader(conn, &buf))
+	sni, acme, err := extractInfo(io.TeeReader(conn, &buf))
 	if err != nil {
 		conn.alert(tlsInternalError)
 		conn.log(err)
@@ -97,7 +97,11 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
+	// Choose backend.
 	backend := route.Backend
+	if acme && route.ACME != nil {
+		backend = route.ACME
+	}
 
 	// Check if the client has the right to connect to a given backend.
 	client := conn.RemoteAddr().(*net.TCPAddr).IP

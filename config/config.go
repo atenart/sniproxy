@@ -31,7 +31,10 @@ type Config struct {
 // Route represents a route between matched domains and a backend.
 type Route struct {
 	Domains   []*regexp.Regexp
+	// Default backend.
 	Backend   *Backend
+	// Backend for ACME.
+	ACME      *Backend
 	// Deny and Allow contain lists of IP ranges and/or addresses to
 	// whitelist or blacklist for a given route. If Allow is used, all
 	// addresses are then blocked by default.
@@ -92,6 +95,12 @@ func (c *Config) parse(root *Directive) {
 					log.Fatal("Invalid backend directive")
 				}
 				route.Backend = parseBackend(dir)
+				break
+			case "acme":
+				if len(dir.Args) != 1 {
+					log.Fatal("Invalid acme directive")
+				}
+				route.ACME = parseBackend(dir)
 				break
 			case "deny":
 				if len(dir.Args) != 1 {
