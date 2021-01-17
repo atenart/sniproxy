@@ -67,6 +67,7 @@ func (p *Proxy) ListenAndServe(bind string) error {
 // Dispatch a net.Conn. This cannot fail.
 func (conn *Conn) dispatch() {
 	defer conn.Close()
+	client := conn.RemoteAddr().(*net.TCPAddr).IP
 
 	// Set a deadline for reading the TLS handshake.
 	if err := conn.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil {
@@ -103,14 +104,18 @@ func (conn *Conn) dispatch() {
 		backend = route.ACME
 	}
 
+	if acme && route.AllowACME {
+		goto bypassACLs
+	}
+
 	// Check if the client has the right to connect to a given backend.
-	client := conn.RemoteAddr().(*net.TCPAddr).IP
 	if !clientAllowed(route, client) {
 		conn.alert(tlsAccessDenied)
 		conn.logf("Denied %s / %s access to %s", client.String(), sni, backend.Address)
 		return
 	}
 
+bypassACLs:
 	upstream := func() *net.TCPConn {
 		up, err := net.DialTimeout("tcp", backend.Address, 3*time.Second)
 		if err != nil {

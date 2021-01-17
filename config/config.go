@@ -35,6 +35,8 @@ type Route struct {
 	Backend   *Backend
 	// Backend for ACME.
 	ACME      *Backend
+	// Bypass ACLs for ACME.
+	AllowACME bool
 	// Deny and Allow contain lists of IP ranges and/or addresses to
 	// whitelist or blacklist for a given route. If Allow is used, all
 	// addresses are then blocked by default.
@@ -115,6 +117,10 @@ func (c *Config) parse(root *Directive) {
 					log.Fatal("Invalid allow directive")
 				}
 				for _, subnet := range(strings.Split(dir.Args[0], ",")) {
+					if subnet == "acme" {
+						route.AllowACME = true
+						continue
+					}
 					route.Allow = append(route.Allow, parseRange(subnet))
 				}
 				break

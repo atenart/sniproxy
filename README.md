@@ -129,3 +129,14 @@ example.net {
 	acme 1.2.3.5:443
 }
 ```
+
+ACLs can be bypassed for ACME:
+
+```
+# All IPs are denied except for 192.168.0.0/24 and ACME TLS.
+example.net {
+	backend 1.2.3.4:443
+	acme 1.2.3.5:443
+	allow 192.168.0.0/24, acme
+}
+```
