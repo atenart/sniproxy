@@ -97,16 +97,18 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
+	backend := route.Backend
+
 	// Check if the client has the right to connect to a given backend.
 	client := conn.RemoteAddr().(*net.TCPAddr).IP
 	if !clientAllowed(route, client) {
 		conn.alert(tlsAccessDenied)
-		conn.logf("Denied %s / %s access to %s", client.String(), sni, route.Backend)
+		conn.logf("Denied %s / %s access to %s", client.String(), sni, backend.Address)
 		return
 	}
 
 	upstream := func() *net.TCPConn {
-		up, err := net.DialTimeout("tcp", route.Backend, 3*time.Second)
+		up, err := net.DialTimeout("tcp", backend.Address, 3*time.Second)
 		if err != nil {
 			conn.alert(tlsInternalError)
 			conn.log(err)
@@ -120,9 +122,8 @@ func (conn *Conn) dispatch() {
 	defer upstream.Close()
 
 	// Check if the HAProxy PROXY protocol header has to be sent.
-	if route.SendProxy != config.ProxyNone {
-		if err := proxyHeader(route, conn, upstream); err != nil {
-			conn.alert(tlsInternalError)
+	if backend.SendProxy != config.ProxyNone {
+		if err := proxyHeader(backend.SendProxy, conn, upstream); err != nil {
 			log.Print(err)
 			return
 		}
@@ -131,7 +132,7 @@ func (conn *Conn) dispatch() {
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf("Failed to replay handshake to %s", route.Backend)
+		conn.logf("Failed to replay handshake to %s", backend.Address)
 		return
 	}
 
@@ -149,7 +150,7 @@ func (conn *Conn) dispatch() {
 	go func () {
 		defer wg.Done()
 		if _, err := io.Copy(conn.TCPConn, upstream); err != nil {
-			conn.logf("Error copying to %s (%s): %s", route.Backend, sni, err)
+			conn.logf("Error copying to %s (%s): %s", backend.Address, sni, err)
 		}
 		conn.CloseRead()
 		upstream.CloseWrite()
@@ -161,7 +162,7 @@ func (conn *Conn) dispatch() {
 	upstream.SetKeepAlive(true)
 	upstream.SetKeepAlivePeriod(time.Minute)
 
-	conn.logf("Routing %s to %s", sni, route.Backend)
+	conn.logf("Routing %s to %s", sni, backend.Address)
 
 	wg.Wait()
 }

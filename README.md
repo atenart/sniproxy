@@ -33,7 +33,9 @@ and optional parameters. Empty blocks (`{}`) can be omitted.
 
 ```
 hostname0, hostname1, … {
-	backend <IP/hostname>:port
+	backend <IP/hostname>:port {
+		optional-parameter
+	}
 	parameter0
 	parameter1 arg0, arg1, …
 	…
@@ -64,15 +66,17 @@ v1 and v2 are supported.
 
 ```
 example.net {
-	backend 1.2.3.4:443
-	# Send a PROXY header using the PROXY protocol v1.
-	send-proxy
+	backend 1.2.3.4:443 {
+		# Send a PROXY header using the PROXY protocol v1.
+		send-proxy
+	}
 }
 
 blog.example.net {
-	backend 1.2.3.5:443
-	# Send a PROXY header using the PROXY protocol v2.
-	send-proxy-v2
+	backend 1.2.3.5:443 {
+		# Send a PROXY header using the PROXY protocol v2.
+		send-proxy-v2
+	}
 }
 ```
 

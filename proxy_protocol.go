@@ -25,11 +25,11 @@ import (
 )
 
 // Handles sending an HAProxy PROXY header to a backend.
-func proxyHeader(route *config.Route, client, upstream net.Conn) error {
+func proxyHeader(version uint, client, upstream net.Conn) error {
 	var header bytes.Buffer
 
 	// Retrieve the PROXY header to be sent.
-	switch (route.SendProxy) {
+	switch (version) {
 	case config.ProxyV1:
 		header = proxyHeaderV1(client)
 		break
@@ -37,7 +37,7 @@ func proxyHeader(route *config.Route, client, upstream net.Conn) error {
 		header = proxyHeaderV2(client)
 		break
 	default:
-		return fmt.Errorf("PROXY protocol version not supported (%d)", route.SendProxy)
+		return fmt.Errorf("PROXY protocol version not supported (%d)", version)
 	}
 
 	// Send the PROXY header to the backend.
