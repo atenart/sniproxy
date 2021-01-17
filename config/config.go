@@ -137,7 +137,7 @@ func (c *Config) parse(root *Directive) {
 // Converts a domain to a regexp.Regexp.
 func domain2Regex(domain string) (*regexp.Regexp, error) {
 	// Translate the domains into a regexp valid string.
-	regex := ""
+	regex := "^"
 	for _, r := range domain {
 		switch r {
 		case '*':
@@ -150,6 +150,7 @@ func domain2Regex(domain string) (*regexp.Regexp, error) {
 			regex += string(r)
 		}
 	}
+	regex += "$"
 
 	return regexp.Compile(regex)
 }
