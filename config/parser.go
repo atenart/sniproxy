@@ -15,50 +15,40 @@
 
 package config
 
-// Represents a block within a configuration file. A block contains directives
-// and other nested blocks, and starts with a label. The top level configuration
-// is itself a block (with no label).
-type Block struct {
-	label      string
-	directives []*Directive
-	blocks     []*Block
-}
 type Directive struct {
-	directive string
-	args      []string
+	Name       string
+	Args       []string
+	Directives []*Directive
 }
 
-// Converts a configuration block into a Block, which is used later for the
-// actual parsing of directives.
-func newBlock(l *Lexer) *Block {
-	b := &Block{ label: l.Val() }
+func parseDirective(l *Lexer) *Directive {
+	d := &Directive{ Name: l.Val() }
 
-	for l.NextLine() {
+	// Quick hack, special case the first block.
+	// Real default: false
+	block := l.Val() == ""
+
+	// Retrieve all the arguments on the current line.
+	for l.Next() {
 		// Start of a new block.
-		if l.NextVal() == "{" {
-			b.blocks = append(b.blocks, newBlock(l))
-			continue
+		if l.Val() == "{" {
+			block = true
+			break
 		}
 
+		// Directive's arguments.
+		d.Args = append(d.Args, l.Val())
+	}
+
+	// Parse the directive's block.
+	for block && l.NextLine() {
 		// End of block, return to previous one.
 		if l.Val() == "}" {
 			break
 		}
 
-		// Not a block, it's a directive. parse the current line.
-		b.directives = append(b.directives, newDirective(l))
-	}
-
-	return b
-}
-
-// Parse a directive and store it into a Directive.
-func newDirective(l *Lexer) *Directive {
-	d := &Directive{ directive: l.Val() }
-
-	// Retrieve all the arguments on the current line.
-	for l.Next() {
-		d.args = append(d.args, l.Val())
+		// Parse new directives.
+		d.Directives = append(d.Directives, parseDirective(l))
 	}
 
 	return d

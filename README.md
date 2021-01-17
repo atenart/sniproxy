@@ -29,7 +29,7 @@ $ docker run --name sniproxy -p 443:443/tcp \
 
 The configuration is made of a list of blocks. Each block represents a route. A
 route is defined by a list of hostnames, a backend to route the connection to
-and optional parameters:
+and optional parameters. Empty blocks (`{}`) can be omitted.
 
 ```
 hostname0, hostname1, … {
