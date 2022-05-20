@@ -22,7 +22,18 @@ line option.
 ```shell
 $ docker run --name sniproxy -p 443:443/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
-	atenart/sniproxy:latest -bind 192.168.0.1:8080 -conf sniproxy.conf
+	atenart/sniproxy:latest -bind 192.168.0.1:8443 -conf sniproxy.conf
+```
+
+_SNIProxy_ might start an HTTP server to handle HTTP>HTTPS redirects (see
+below). By default this server binds to `:80` but a different address and/or
+port can be selected using the `-http-bind` option. If the HTTP server is not
+needed, this option will be a no-op.
+
+```shell
+$ docker run --name sniproxy -p 443:443/tcp \
+	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
+	atenart/sniproxy:latest -http-bind 192.168.0.1:8080 -conf sniproxy.conf
 ```
 
 ## Configuration file
@@ -140,3 +151,21 @@ example.net {
 	allow 192.168.0.0/24, acme
 }
 ```
+
+_SNIProxy_ can redirect HTTP requests to their HTTPS counterpart. This is
+controlled per-hostname using the `http-redirect` option. It contains a list of
+redirect types (aka. where the request is coming from); possible values are
+`http` and `tls`. The former handles genuine HTTP request coming to an HTTP
+server started automatically by _SNIProxy_ and the later handles unexpected HTTP
+requests coming on the TLS server.
+
+```
+example.net {
+	backend 1.2.3.4:443
+	http-redirect http,tls
+}
+```
+
+Using the above HTTP requests will be redirected to their HTTPS counterpart. The
+port the HTTPS server is publicly accessible can be controlled globally using
+the command line option `http-redirect-port` (443 by default).

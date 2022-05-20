@@ -25,6 +25,8 @@ import (
 var (
 	conf = flag.String("conf", "", "Configuration file.")
 	bind = flag.String("bind", ":443", "Address and port to bind to.")
+	http = flag.String("http-bind", ":80", "Address and port to bind to, listening for HTTP traffic to redirect to its HTTPS counterpart.")
+	redirectPort = flag.Int("http-redirect-port", 443, "Public port of the HTTPS server to redirect the HTTP traffic to.")
 )
 
 func main() {
@@ -34,8 +36,18 @@ func main() {
 	}
 
 	p := &sniproxy.Proxy{}
+
 	if err := p.Config.ReadFile(*conf); err != nil {
 		log.Fatalf("Could not read config %q (%s)", *conf, err)
+	}
+	p.Config.RedirectPort = *redirectPort
+
+	if p.Config.NeedHTTP() {
+		go func() {
+			if err := p.HandleRedirect(*http); err != nil {
+				log.Fatal(err)
+			}
+		}()
 	}
 
 	if err := p.ListenAndServe(*bind); err != nil {

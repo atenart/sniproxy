@@ -52,7 +52,7 @@ func (p *Proxy) ListenAndServe(bind string) error {
 
 		conn := &Conn{
 			TCPConn: c.(*net.TCPConn),
-			Config: &p.Config,
+			Config:  &p.Config,
 		}
 
 		go conn.dispatch()
@@ -74,8 +74,16 @@ func (conn *Conn) dispatch() {
 	}
 
 	var buf bytes.Buffer
-	sni, acme, err := extractInfo(io.TeeReader(conn, &buf))
+	r := io.TeeReader(conn, &buf)
+	sni, acme, err := extractInfo(r)
 	if err != nil {
+		// If the request looks like an HTTP one try to parse it and
+		// see if we can redirect it (if allowed in the configuration).
+		if isHTTP(&buf) {
+			redirectHTTP(conn, &buf)
+			return
+		}
+
 		conn.alert(tlsInternalError)
 		conn.log(log.WARN, err)
 		return

@@ -28,25 +28,31 @@ import (
 
 // Config holds the entire current configuration.
 type Config struct {
-	Routes  []*Route
+	Routes       []*Route
+	// Port used when redirecting HTTP requests to their HTTPS counterpart.
+	// Aka. the publicly accessible port of the TLS SNI server.
+	RedirectPort int
 }
 
 // Route represents a route between matched domains and a backend.
 type Route struct {
-	Domains   []*regexp.Regexp
+	Domains      []*regexp.Regexp
 	// Default backend.
-	Backend   *Backend
+	Backend      *Backend
 	// Backend for ACME.
-	ACME      *Backend
+	ACME         *Backend
 	// Bypass ACLs for ACME.
-	AllowACME bool
+	AllowACME    bool
 	// Deny and Allow contain lists of IP ranges and/or addresses to
 	// whitelist or blacklist for a given route. If Allow is used, all
 	// addresses are then blocked by default.
 	// The more specific subnet takes precedence, and Deny wins over Allow
 	// in case none is more specific.
-	Deny      []*net.IPNet
-	Allow     []*net.IPNet
+	Deny         []*net.IPNet
+	Allow        []*net.IPNet
+	// HTTPRedirect represents configuration options linked to HTTP>HTTPS
+	// redirection (308) in different situations.
+	HTTPRedirect uint32
 }
 
 // Backend represents a backend and its options.
@@ -56,12 +62,33 @@ type Backend struct {
 	SendProxy uint
 }
 
+// HTTPRedirect bits.
+const (
+	REDIRECT_NONE      = 0
+	// Redirect genuine HTTP requests coming from a client contacting our
+	// built-in HTTP server.
+	REDIRECT_FROM_HTTP = 1 << 0
+	// Redirect HTTP requests coming from a client contacting our TLS SNI
+	// proxy. Those requests are not what we expect but clients might make
+	// them by mistake, especially when not using standard ports.
+	REDIRECT_FROM_TLS  = 1 << 1
+)
+
 // SendProxy possible values.
 const (
 	ProxyNone = iota
 	ProxyV1
 	ProxyV2
 )
+
+func (c *Config)NeedHTTP() bool {
+	for _, route := range c.Routes {
+		if (route.HTTPRedirect & REDIRECT_FROM_HTTP) != 0 {
+			return true
+		}
+	}
+	return false
+}
 
 // Matches an SNI to a backend.
 func (c *Config)MatchBackend(sni string) *Route {
@@ -160,6 +187,21 @@ func (c *Config) parse(root *lexer.Directive) error {
 					route.Allow = append(route.Allow, r)
 				}
 				break
+			case "http-redirect":
+				if len(dir.Args) != 1 {
+					return fmt.Errorf("Invalid http-redirect directive")
+				}
+
+				for _, source := range strings.Split(dir.Args[0], ",") {
+					switch source {
+					case "http":
+						route.HTTPRedirect |= REDIRECT_FROM_HTTP
+					case "tls":
+						route.HTTPRedirect |= REDIRECT_FROM_TLS
+					default:
+						return fmt.Errorf("Invalid option '%s' for 'http-redirect'", source)
+					}
+				}
 			default:
 				continue
 			}
