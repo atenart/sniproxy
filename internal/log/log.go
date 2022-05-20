@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021 Antoine Tenart <antoine.tenart@ack.tf>
+// Copyright (C) 2019-2022 Antoine Tenart <antoine.tenart@ack.tf>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -13,30 +13,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-package main
+package log
 
 import (
-	"flag"
-	"log"
+	"fmt"
 )
 
-var (
-	conf = flag.String("conf", "", "Configuration file.")
-	bind = flag.String("bind", ":443", "Address and port to bind to.")
+// Log levels.
+const (
+	DEBUG = iota
+	INFO
+	WARN
+	ERR
 )
 
-func main() {
-	flag.Parse()
-	if *conf == "" {
-		log.Fatal("No config provided. Aborting.")
-	}
+// Default log level.
+var LogLevel = INFO
 
-	p := &Proxy{}
-	if err := p.Config.ReadFile(*conf); err != nil {
-		log.Fatalf("Could not read config %q (%s)", *conf, err)
+func Printf(level int, format string, v ...any) {
+	if level >= LogLevel {
+		fmt.Printf(format, v...)
+		fmt.Println()
 	}
+}
 
-	if err := p.ListenAndServe(*bind); err != nil {
-		log.Fatal(err)
-	}
+func Print(level int, v ...any) {
+	Printf(level, fmt.Sprint(v...))
+}
+
+func Fatalf(format string, v ...any) {
+	Printf(ERR, format, v...)
+}
+
+func Fatal(v ...any) {
+	Print(ERR, v...)
 }

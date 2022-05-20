@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021 Antoine Tenart <antoine.tenart@ack.tf>
+// Copyright (C) 2019-2022 Antoine Tenart <antoine.tenart@ack.tf>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,14 +16,29 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"flag"
+
+	"github.com/atenart/sniproxy/internal/log"
+	"github.com/atenart/sniproxy/internal/sniproxy"
 )
 
-func (conn *Conn) logf(format string, v ...interface{}) {
-	log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprintf(format, v...))
-}
+var (
+	conf = flag.String("conf", "", "Configuration file.")
+	bind = flag.String("bind", ":443", "Address and port to bind to.")
+)
 
-func (conn *Conn) log(v ...interface{}) {
-	log.Printf("%s %s", conn.RemoteAddr(), fmt.Sprint(v...))
+func main() {
+	flag.Parse()
+	if *conf == "" {
+		log.Fatalf("No config provided. Aborting.")
+	}
+
+	p := &sniproxy.Proxy{}
+	if err := p.Config.ReadFile(*conf); err != nil {
+		log.Fatalf("Could not read config %q (%s)", *conf, err)
+	}
+
+	if err := p.ListenAndServe(*bind); err != nil {
+		log.Fatal(err)
+	}
 }

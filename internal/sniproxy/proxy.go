@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021 Antoine Tenart <antoine.tenart@ack.tf>
+// Copyright (C) 2019-2022 Antoine Tenart <antoine.tenart@ack.tf>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -13,18 +13,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-package main
+package sniproxy
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/atenart/sniproxy/config"
+	"github.com/atenart/sniproxy/internal/config"
+	"github.com/atenart/sniproxy/internal/log"
 )
 
 // Represents the proxy itself.
@@ -72,7 +71,7 @@ func (conn *Conn) dispatch() {
 	// Set a deadline for reading the TLS handshake.
 	if err := conn.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf("Could not set a read deadline (%s)", err)
+		conn.logf(log.ERR, "Could not set a read deadline (%s)", err)
 		return
 	}
 
@@ -80,21 +79,20 @@ func (conn *Conn) dispatch() {
 	sni, acme, err := extractInfo(io.TeeReader(conn, &buf))
 	if err != nil {
 		conn.alert(tlsInternalError)
-		conn.log(err)
+		conn.log(log.WARN, err)
 		return
 	}
 
 	// We found an SNI, reset the read deadline.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf("Could not clear the read deadline (%s)", err)
+		conn.logf(log.ERR, "Could not clear the read deadline (%s)", err)
 		return
 	}
 
-	route, err := conn.Match(sni)
-	if err != nil {
+	route := conn.Match(sni)
+	if route == nil {
 		conn.alert(tlsUnrecognizedName)
-		conn.log(err)
 		return
 	}
 
@@ -111,7 +109,7 @@ func (conn *Conn) dispatch() {
 	// Check if the client has the right to connect to a given backend.
 	if !clientAllowed(route, client) {
 		conn.alert(tlsAccessDenied)
-		conn.logf("Denied %s / %s access to %s", client.String(), sni, backend.Address)
+		conn.logf(log.INFO, "Denied %s / %s access to %s", client.String(), sni, backend.Address)
 		return
 	}
 
@@ -120,7 +118,7 @@ bypassACLs:
 		up, err := net.DialTimeout("tcp", backend.Address, 3*time.Second)
 		if err != nil {
 			conn.alert(tlsInternalError)
-			conn.log(err)
+			conn.log(log.ERR, err)
 			return nil
 		}
 		return up.(*net.TCPConn)
@@ -133,7 +131,7 @@ bypassACLs:
 	// Check if the HAProxy PROXY protocol header has to be sent.
 	if backend.SendProxy != config.ProxyNone {
 		if err := proxyHeader(backend.SendProxy, conn, upstream); err != nil {
-			log.Print(err)
+			log.Print(log.WARN, err)
 			return
 		}
 	}
@@ -141,7 +139,7 @@ bypassACLs:
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf("Failed to replay handshake to %s", backend.Address)
+		conn.logf(log.ERR, "Failed to replay handshake to %s", backend.Address)
 		return
 	}
 
@@ -151,7 +149,7 @@ bypassACLs:
 	go func () {
 		defer wg.Done()
 		if _, err := io.Copy(upstream, conn.TCPConn); err != nil {
-			conn.logf("Error copying to %s (%s): %s", conn.RemoteAddr(), sni, err)
+			conn.logf(log.WARN, "Error copying to %s (%s): %s", conn.RemoteAddr(), sni, err)
 		}
 		upstream.CloseRead()
 		conn.CloseWrite()
@@ -159,7 +157,7 @@ bypassACLs:
 	go func () {
 		defer wg.Done()
 		if _, err := io.Copy(conn.TCPConn, upstream); err != nil {
-			conn.logf("Error copying to %s (%s): %s", backend.Address, sni, err)
+			conn.logf(log.WARN, "Error copying to %s (%s): %s", backend.Address, sni, err)
 		}
 		conn.CloseRead()
 		upstream.CloseWrite()
@@ -171,7 +169,7 @@ bypassACLs:
 	upstream.SetKeepAlive(true)
 	upstream.SetKeepAlivePeriod(time.Minute)
 
-	conn.logf("Routing %s to %s", sni, backend.Address)
+	conn.logf(log.INFO, "Routing %s to %s", sni, backend.Address)
 
 	wg.Wait()
 }
@@ -193,28 +191,29 @@ func (conn *Conn) alert(desc byte) {
 
 	// Set a write timeout before sending the alert.
 	if err := conn.SetWriteDeadline(time.Now().Add(3*time.Second)); err != nil {
-		conn.logf("Could not set a write deadline for the alert message (%s)", err)
+		conn.logf(log.ERR, "Could not set a write deadline for the alert message (%s)", err)
 		return
 	}
 
 	if _, err := message.WriteTo(conn); err != nil {
-		conn.logf("Failed to send an alert message (%s)", err)
+		conn.logf(log.ERR, "Failed to send an alert message (%s)", err)
 	}
 }
 
 // Matches a connection to a backend.
-func (conn *Conn) Match(sni string) (*config.Route, error) {
+func (conn *Conn) Match(sni string) *config.Route {
 	// Loop over each route described in the configuration.
 	for _, route := range conn.Config.Routes {
 		// Loop over each domain of a given route.
 		for _, domain := range route.Domains {
 			if domain.MatchString(sni) {
-				return route, nil
+				return route
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("No route matching the requested domain (%s)", sni)
+	conn.logf(log.INFO, "No route matching the requested domain (%s)", sni)
+	return nil
 }
 
 // Check an IP against a route deny/allow rules.
