@@ -31,9 +31,19 @@ port can be selected using the `-http-bind` option. If the HTTP server is not
 needed, this option will be a no-op.
 
 ```shell
-$ docker run --name sniproxy -p 443:443/tcp \
+$ docker run --name sniproxy -p 443:443/tcp -p 80:80/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
 	atenart/sniproxy:latest -http-bind 192.168.0.1:8080 -conf sniproxy.conf
+```
+
+The log level can be controlled using the `-log-level` option. It takes one of
+the following values: `error`, `warn`, `info` or `debug`. By default it is set
+to `info`.
+
+```shell
+$ docker run --name sniproxy -p 443:443/tcp \
+	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
+	atenart/sniproxy:latest -conf sniproxy.conf -log-level error
 ```
 
 ## Configuration file
