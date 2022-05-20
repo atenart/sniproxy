@@ -168,4 +168,4 @@ example.net {
 
 Using the above HTTP requests will be redirected to their HTTPS counterpart. The
 port the HTTPS server is publicly accessible can be controlled globally using
-the command line option `http-redirect-port` (443 by default).
+the command line option `-http-redirect-port` (443 by default).
