@@ -63,6 +63,22 @@ const (
 	ProxyV2
 )
 
+// Matches an SNI to a backend.
+func (c *Config)MatchBackend(sni string) *Route {
+	// Loop over each route described in the configuration.
+	for _, route := range c.Routes {
+		// Loop over each domain of a given route.
+		for _, domain := range route.Domains {
+			if domain.MatchString(sni) {
+				return route
+			}
+		}
+	}
+
+	log.Printf(log.INFO, "No route matching the requested domain (%s)", sni)
+	return nil
+}
+
 // Reads a configuration file and transforms it into a Config struct.
 func (c *Config) ReadFile(file string) error {
 	f, err := os.Open(file)

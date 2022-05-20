@@ -89,7 +89,7 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
-	route := conn.Match(sni)
+	route := conn.Config.MatchBackend(sni)
 	if route == nil {
 		conn.alert(tlsUnrecognizedName)
 		return
@@ -197,22 +197,6 @@ func (conn *Conn) alert(desc byte) {
 	if _, err := message.WriteTo(conn); err != nil {
 		conn.logf(log.ERR, "Failed to send an alert message (%s)", err)
 	}
-}
-
-// Matches a connection to a backend.
-func (conn *Conn) Match(sni string) *Route {
-	// Loop over each route described in the configuration.
-	for _, route := range conn.Config.Routes {
-		// Loop over each domain of a given route.
-		for _, domain := range route.Domains {
-			if domain.MatchString(sni) {
-				return route
-			}
-		}
-	}
-
-	conn.logf(log.INFO, "No route matching the requested domain (%s)", sni)
-	return nil
 }
 
 // Check an IP against a route deny/allow rules.
