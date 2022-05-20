@@ -86,7 +86,7 @@ func redirectHTTP(conn *Conn, buf *bytes.Buffer) {
 
 	host := cleanHost(req.Host)
 	conn.sni = host
-	redirHost, status, err := getRedirectHost(conn.Config, host, REDIRECT_FROM_TLS)
+	redirHost, status, err := getRedirectHost(conn.config, host, REDIRECT_FROM_TLS)
 	if err != nil {
 		conn.logf(log.INFO, "HTTP request on TLS port: %s", err)
 	}

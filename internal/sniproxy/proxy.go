@@ -32,7 +32,7 @@ type Proxy struct {
 // Represents a connection being routed.
 type Conn struct {
 	*net.TCPConn
-	Config  *Config
+	config  *Config
 	sni     string
 	backend string
 }
@@ -54,9 +54,8 @@ func (p *Proxy) ListenAndServe(bind string) error {
 
 		conn := &Conn{
 			TCPConn: c.(*net.TCPConn),
-			Config:  &p.Config,
+			config:  &p.Config,
 		}
-
 		go conn.dispatch()
 	}
 
@@ -99,7 +98,7 @@ func (conn *Conn) dispatch() {
 		return
 	}
 
-	route := conn.Config.MatchBackend(sni)
+	route := conn.config.MatchBackend(sni)
 	if route == nil {
 		conn.alert(tlsUnrecognizedName)
 		return
