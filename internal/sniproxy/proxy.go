@@ -16,6 +16,7 @@
 package sniproxy
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net"
@@ -75,13 +76,13 @@ func (conn *Conn) dispatch() {
 	}
 
 	var buf bytes.Buffer
-	r := io.TeeReader(conn, &buf)
+	r := bufio.NewReaderSize(io.TeeReader(conn, &buf), 1024)
 	sni, acme, err := extractInfo(r)
 	if err != nil {
 		// If the request looks like an HTTP one try to parse it and
 		// see if we can redirect it (if allowed in the configuration).
 		if isHTTP(&buf) {
-			redirectHTTP(conn, &buf)
+			redirectHTTP(conn, io.MultiReader(&buf, r))
 			return
 		}
 

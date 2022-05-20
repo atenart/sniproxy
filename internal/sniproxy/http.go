@@ -75,8 +75,8 @@ func isHTTP(buf *bytes.Buffer) bool {
 
 // Try redirecting what could be an HTTP request received on a TCP socket (in
 // our case the TLS SNI server).
-func redirectHTTP(conn *Conn, buf *bytes.Buffer) {
-	req, err := http.ReadRequest(bufio.NewReader(io.MultiReader(buf, conn)))
+func redirectHTTP(conn *Conn, r io.Reader) {
+	req, err := http.ReadRequest(bufio.NewReader(r))
 	if err != nil {
 		// Log as DEBUG, remember this is best effort and we're not sure
 		// the request is genuine.
