@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/atenart/sniproxy/internal/log"
@@ -142,25 +141,9 @@ bypassACLs:
 		return
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func () {
-		defer wg.Done()
-		if _, err := io.Copy(upstream, conn.TCPConn); err != nil {
-			conn.logf(log.WARN, "Error copying to %s (%s): %s", conn.RemoteAddr(), sni, err)
-		}
-		upstream.CloseRead()
-		conn.CloseWrite()
-	}()
-	go func () {
-		defer wg.Done()
-		if _, err := io.Copy(conn.TCPConn, upstream); err != nil {
-			conn.logf(log.WARN, "Error copying to %s (%s): %s", backend.Address, sni, err)
-		}
-		conn.CloseRead()
-		upstream.CloseWrite()
-	}()
+	errc := make(chan error, 1)
+	go proxy(conn.TCPConn, upstream, errc)
+	go proxy(upstream, conn.TCPConn, errc)
 
 	// Send keep alive messages to both the client and the backend.
 	conn.SetKeepAlive(true)
@@ -169,8 +152,14 @@ bypassACLs:
 	upstream.SetKeepAlivePeriod(time.Minute)
 
 	conn.logf(log.INFO, "Routing %s to %s", sni, backend.Address)
+	<-errc
+}
 
-	wg.Wait()
+// Proxies two TCPConn (one-way). Directly use *net.TCPConn so Go splice
+// optimization kicks in.
+func proxy(dst, src *net.TCPConn, errc chan<- error) {
+	_, err := io.Copy(dst, src)
+	errc <- err
 }
 
 // TLS alert message descriptions.
