@@ -22,9 +22,22 @@ import (
 )
 
 func (conn *Conn) logf(level int, format string, v ...any) {
-	log.Printf(level, "%s %s", conn.RemoteAddr(), fmt.Sprintf(format, v...))
+	log.Printf(level, "%s %s", conn.logPrefix(), fmt.Sprintf(format, v...))
 }
 
 func (conn *Conn) log(level int, v ...any) {
-	log.Printf(level, "%s %s", conn.RemoteAddr(), fmt.Sprint(v...))
+	log.Printf(level, "%s %s", conn.logPrefix(), fmt.Sprint(v...))
+}
+
+func (conn *Conn) logPrefix() string {
+	var sni, backend string
+
+	if conn.backend != "" {
+		backend = fmt.Sprintf("<>%s", conn.backend)
+	}
+	if conn.sni != "" {
+		sni = fmt.Sprintf(" (%s)", conn.sni)
+	}
+
+	return fmt.Sprintf("%s%s%s -", conn.RemoteAddr(), backend, sni)
 }

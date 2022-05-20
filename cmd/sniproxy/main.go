@@ -17,6 +17,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/atenart/sniproxy/internal/log"
 	"github.com/atenart/sniproxy/internal/sniproxy"
@@ -27,12 +28,17 @@ var (
 	bind = flag.String("bind", ":443", "Address and port to bind to.")
 	http = flag.String("http-bind", ":80", "Address and port to bind to, listening for HTTP traffic to redirect to its HTTPS counterpart.")
 	redirectPort = flag.Int("http-redirect-port", 443, "Public port of the HTTPS server to redirect the HTTP traffic to.")
+	logLevel = flag.String("log-level", "warn", "Log level (debug, info, warn, err)")
 )
 
 func main() {
 	flag.Parse()
 	if *conf == "" {
 		log.Fatalf("No config provided. Aborting.")
+	}
+
+	if err := setLogLevel(); err != nil {
+		log.Fatal(err)
 	}
 
 	p := &sniproxy.Proxy{}
@@ -53,4 +59,20 @@ func main() {
 	if err := p.ListenAndServe(*bind); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func setLogLevel() error {
+	switch *logLevel {
+	case "debug":
+		log.LogLevel = log.DEBUG
+	case "info":
+		log.LogLevel = log.INFO
+	case "warn":
+		log.LogLevel = log.WARN
+	case "error":
+		log.LogLevel = log.ERR
+	default:
+		return fmt.Errorf("Invalid log level '%s'", *logLevel)
+	}
+	return nil
 }

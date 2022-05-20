@@ -32,7 +32,9 @@ type Proxy struct {
 // Represents a connection being routed.
 type Conn struct {
 	*net.TCPConn
-	Config *Config
+	Config  *Config
+	sni     string
+	backend string
 }
 
 // Listen and serve the connections.
@@ -69,7 +71,7 @@ func (conn *Conn) dispatch() {
 	// Set a deadline for reading the TLS handshake.
 	if err := conn.SetReadDeadline(time.Now().Add(3*time.Second)); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf(log.ERR, "Could not set a read deadline (%s)", err)
+		conn.logf(log.ERR, "Could not set a read deadline: %s", err)
 		return
 	}
 
@@ -85,14 +87,15 @@ func (conn *Conn) dispatch() {
 		}
 
 		conn.alert(tlsInternalError)
-		conn.log(log.WARN, err)
+		conn.logf(log.WARN, "Failed to extract the SNI: %s", err)
 		return
 	}
+	conn.sni = sni
 
 	// We found an SNI, reset the read deadline.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf(log.ERR, "Could not clear the read deadline (%s)", err)
+		conn.logf(log.ERR, "Could not clear the read deadline: %s", err)
 		return
 	}
 
@@ -115,7 +118,7 @@ func (conn *Conn) dispatch() {
 	// Check if the client has the right to connect to a given backend.
 	if !clientAllowed(route, client) {
 		conn.alert(tlsAccessDenied)
-		conn.logf(log.INFO, "Denied %s / %s access to %s", client.String(), sni, backend.Address)
+		conn.logf(log.INFO, "Access denied")
 		return
 	}
 
@@ -124,7 +127,7 @@ bypassACLs:
 		up, err := net.DialTimeout("tcp", backend.Address, 3*time.Second)
 		if err != nil {
 			conn.alert(tlsInternalError)
-			conn.log(log.ERR, err)
+			conn.logf(log.ERR, "Could not connect to the backend: %s", err)
 			return nil
 		}
 		return up.(*net.TCPConn)
@@ -132,6 +135,7 @@ bypassACLs:
 	if upstream == nil {
 		return
 	}
+	conn.backend = backend.Address
 	defer upstream.Close()
 
 	// Check if the HAProxy PROXY protocol header has to be sent.
@@ -145,7 +149,7 @@ bypassACLs:
 	// Replay the handshake we read.
 	if _, err := io.Copy(upstream, &buf); err != nil {
 		conn.alert(tlsInternalError)
-		conn.logf(log.ERR, "Failed to replay handshake to %s", backend.Address)
+		conn.logf(log.ERR, "Failed to replay the handshake: %s", err)
 		return
 	}
 
@@ -159,7 +163,7 @@ bypassACLs:
 	upstream.SetKeepAlive(true)
 	upstream.SetKeepAlivePeriod(time.Minute)
 
-	conn.logf(log.INFO, "Routing %s to %s", sni, backend.Address)
+	conn.logf(log.INFO, "Routing new request")
 	<-errc
 }
 
@@ -187,12 +191,12 @@ func (conn *Conn) alert(desc byte) {
 
 	// Set a write timeout before sending the alert.
 	if err := conn.SetWriteDeadline(time.Now().Add(3*time.Second)); err != nil {
-		conn.logf(log.ERR, "Could not set a write deadline for the alert message (%s)", err)
+		conn.logf(log.ERR, "Could not set a write deadline for the alert message: %s", err)
 		return
 	}
 
 	if _, err := message.WriteTo(conn); err != nil {
-		conn.logf(log.ERR, "Failed to send an alert message (%s)", err)
+		conn.logf(log.ERR, "Failed to send an alert message: %s", err)
 	}
 }
 
