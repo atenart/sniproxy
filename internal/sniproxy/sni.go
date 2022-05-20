@@ -145,7 +145,7 @@ func parseClientHello(r io.Reader) error {
 	// 0x301: TLS 1.0, 0x302: TLS 1.1, 0x303 after TLS 1.2.
 	switch (hello.Version) {
 	default:
-		return fmt.Errorf("ClientHello version is not 0x303 (%#x)", hello.Version)
+		return fmt.Errorf("ClientHello version is not supported (%#x)", hello.Version)
 	case 0x301, 0x302, 0x303:
 	}
 
