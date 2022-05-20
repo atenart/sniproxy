@@ -111,6 +111,12 @@ func (conn *Conn) dispatch() {
 		backend = route.ACME
 	}
 
+	// Check if we have a backend.
+	if backend == nil {
+		conn.alert(tlsAccessDenied)
+		return
+	}
+
 	if acme && route.AllowACME {
 		goto bypassACLs
 	}
