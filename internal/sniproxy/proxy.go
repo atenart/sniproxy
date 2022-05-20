@@ -209,7 +209,7 @@ func clientAllowed(route *Route, ip net.IP) bool {
 	}
 
 	var cidr int = 0
-	for _, subnet := range(route.Allow) {
+	for _, subnet := range route.Allow {
 		if subnet.Contains(ip) {
 			sz, _ := subnet.Mask.Size()
 			if sz > cidr {
@@ -217,7 +217,7 @@ func clientAllowed(route *Route, ip net.IP) bool {
 			}
 		}
 	}
-	for _, subnet := range(route.Deny) {
+	for _, subnet := range route.Deny {
 		if subnet.Contains(ip) {
 			sz, _ := subnet.Mask.Size()
 			if sz >= cidr {

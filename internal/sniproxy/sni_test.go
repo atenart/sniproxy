@@ -22,7 +22,7 @@ import (
 
 func craft(bs ...[]byte) []byte {
 	var packet []byte
-	for _, b := range(bs) {
+	for _, b := range bs {
 		packet = append(packet, b...)
 	}
 	return packet
@@ -111,7 +111,7 @@ func TestParseRecord(t *testing.T) {
 		},
 	}
 
-	for _, test := range(tests) {
+	for _, test := range tests {
 		err := parseRecord(bytes.NewBuffer(test.in))
 		if (test.success && (err != nil)) || (!test.success && (err == nil)) {
 			t.Errorf(test.desc)
@@ -157,7 +157,7 @@ func TestParseHandshake(t *testing.T) {
 		},
 	}
 
-	for _, test := range(tests) {
+	for _, test := range tests {
 		err := parseHandshake(bytes.NewBuffer(test.in))
 		if (test.success && (err != nil)) || (!test.success && (err == nil)) {
 			t.Errorf(test.desc)
@@ -248,7 +248,7 @@ func TestParseClientHello(t *testing.T) {
 		},
 	}
 
-	for _, test := range(tests) {
+	for _, test := range tests {
 		err := parseClientHello(bytes.NewBuffer(test.in))
 		if (test.success && (err != nil)) || (!test.success && (err == nil)) {
 			t.Errorf(test.desc)
@@ -321,7 +321,7 @@ func TestParseSNI(t *testing.T) {
 		},
 	}
 
-	for _, test := range(tests) {
+	for _, test := range tests {
 		sni, err := parseSNI(test.in)
 		if (test.success && (err != nil)) || (!test.success && (err == nil)) {
 			t.Errorf(test.desc)
