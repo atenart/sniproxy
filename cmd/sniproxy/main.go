@@ -28,7 +28,7 @@ var (
 	bind = flag.String("bind", ":443", "Address and port to bind to.")
 	http = flag.String("http-bind", ":80", "Address and port to bind to, listening for HTTP traffic to redirect to its HTTPS counterpart.")
 	redirectPort = flag.Int("http-redirect-port", 443, "Public port of the HTTPS server to redirect the HTTP traffic to.")
-	logLevel = flag.String("log-level", "warn", "Log level (debug, info, warn, err)")
+	logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, err)")
 )
 
 func main() {
