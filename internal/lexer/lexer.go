@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-package config
+package lexer
 
 import (
 	"bufio"
@@ -37,7 +37,7 @@ type Token struct {
 
 // Loads an io.Reader and wraps it into a bufio.Reader to prepare the Lexer for
 // scanning tokens.
-func newLexer(input io.Reader) Lexer {
+func NewLexer(input io.Reader) Lexer {
 	l := Lexer{
 		reader: bufio.NewReader(input),
 		cursor: -1,

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-package config
+package lexer
 
 type Directive struct {
 	Name       string
@@ -21,7 +21,7 @@ type Directive struct {
 	Directives []*Directive
 }
 
-func parseDirective(l *Lexer) *Directive {
+func ParseDirective(l *Lexer) *Directive {
 	d := &Directive{ Name: l.Val() }
 
 	// Quick hack, special case the first block.
@@ -48,7 +48,7 @@ func parseDirective(l *Lexer) *Directive {
 		}
 
 		// Parse new directives.
-		d.Directives = append(d.Directives, parseDirective(l))
+		d.Directives = append(d.Directives, ParseDirective(l))
 	}
 
 	return d

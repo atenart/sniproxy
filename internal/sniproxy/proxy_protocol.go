@@ -20,8 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-
-	"github.com/atenart/sniproxy/internal/config"
 )
 
 // Handles sending an HAProxy PROXY header to a backend.
@@ -30,10 +28,10 @@ func proxyHeader(version uint, client, upstream net.Conn) error {
 
 	// Retrieve the PROXY header to be sent.
 	switch (version) {
-	case config.ProxyV1:
+	case ProxyV1:
 		header = proxyHeaderV1(client)
 		break
-	case config.ProxyV2:
+	case ProxyV2:
 		header = proxyHeaderV2(client)
 		break
 	default:

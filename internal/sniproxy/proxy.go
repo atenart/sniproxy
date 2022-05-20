@@ -22,19 +22,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/atenart/sniproxy/internal/config"
 	"github.com/atenart/sniproxy/internal/log"
 )
 
 // Represents the proxy itself.
 type Proxy struct {
-	Config config.Config
+	Config Config
 }
 
 // Represents a connection being routed.
 type Conn struct {
 	*net.TCPConn
-	Config *config.Config
+	Config *Config
 }
 
 // Listen and serve the connections.
@@ -129,7 +128,7 @@ bypassACLs:
 	defer upstream.Close()
 
 	// Check if the HAProxy PROXY protocol header has to be sent.
-	if backend.SendProxy != config.ProxyNone {
+	if backend.SendProxy != ProxyNone {
 		if err := proxyHeader(backend.SendProxy, conn, upstream); err != nil {
 			log.Print(log.WARN, err)
 			return
@@ -201,7 +200,7 @@ func (conn *Conn) alert(desc byte) {
 }
 
 // Matches a connection to a backend.
-func (conn *Conn) Match(sni string) *config.Route {
+func (conn *Conn) Match(sni string) *Route {
 	// Loop over each route described in the configuration.
 	for _, route := range conn.Config.Routes {
 		// Loop over each domain of a given route.
@@ -219,7 +218,7 @@ func (conn *Conn) Match(sni string) *config.Route {
 // Check an IP against a route deny/allow rules.
 // The more specific subnet takes precedence, and Deny wins over Allow in case
 // none is more specific.
-func clientAllowed(route *config.Route, ip net.IP) bool {
+func clientAllowed(route *Route, ip net.IP) bool {
 	// Check if filtering is enabled for the route.
 	if len(route.Allow) == 0 && len(route.Deny) == 0 {
 		return true
