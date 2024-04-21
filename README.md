@@ -13,7 +13,7 @@ few parameters.
 ```shell
 $ docker run --name sniproxy -p 443:443/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
-	atenart/sniproxy:latest -conf sniproxy.conf
+	atenart/sniproxy:go -conf sniproxy.conf
 ```
 
 _SNIProxy_ can be bound to a custom address or port using the `-bind` command
@@ -22,7 +22,7 @@ line option.
 ```shell
 $ docker run --name sniproxy -p 443:443/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
-	atenart/sniproxy:latest -bind 192.168.0.1:8443 -conf sniproxy.conf
+	atenart/sniproxy:go -bind 192.168.0.1:8443 -conf sniproxy.conf
 ```
 
 _SNIProxy_ might start an HTTP server to handle HTTP>HTTPS redirects (see
@@ -33,7 +33,7 @@ needed, this option will be a no-op.
 ```shell
 $ docker run --name sniproxy -p 443:443/tcp -p 80:80/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
-	atenart/sniproxy:latest -http-bind 192.168.0.1:8080 -conf sniproxy.conf
+	atenart/sniproxy:go -http-bind 192.168.0.1:8080 -conf sniproxy.conf
 ```
 
 The log level can be controlled using the `-log-level` option. It takes one of
@@ -43,7 +43,7 @@ to `info`.
 ```shell
 $ docker run --name sniproxy -p 443:443/tcp \
 	-v $(pwd)/sniproxy.conf:/sniproxy.conf \
-	atenart/sniproxy:latest -conf sniproxy.conf -log-level error
+	atenart/sniproxy:go -conf sniproxy.conf -log-level error
 ```
 
 ## Configuration file
