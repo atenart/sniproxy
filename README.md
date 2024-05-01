@@ -92,7 +92,7 @@ routes:
 _SNIProxy_ has a built-in ACL logic and can block and allow connections based on
 the client IP address. When at least one range is explicitly allowed, all other
 ranges are automatically denied (0.0.0.0/0 & ::/0). When an address can be found
-it two ranges, the most specific wins. If the exact same range is both allowed
+in two ranges, the most specific wins. If the exact same range is both allowed
 and denied, the deny rule wins.
 
 ```yaml
