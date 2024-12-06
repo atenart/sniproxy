@@ -67,7 +67,11 @@ impl Tls {
 
             // Extension is empty.
             if len == 0 {
-                bail!("Invalid extension: len is null");
+                // Empty extension is valid for SessionTicket, see RFC 5077
+                if r#type == 35 {
+                    continue;
+                }
+                bail!("Invalid extension {}: len is null", r#type);
             }
 
             // Read the extension data. Even if we do not support the extension, we can't seek as
