@@ -155,7 +155,7 @@ pub(crate) struct Route {
     /// this route. If 'allow' is used, all non-matching addresses are denied.
     /// A 'deny' rule wins over an 'allow' one and the most specific subnet
     /// takes precedence.
-
+    ///
     /// Denied IP ranges. If a request matches, it'll be denied.
     ///
     /// For how allowed ranges compare to denied ones, see `allowed_ranges`.

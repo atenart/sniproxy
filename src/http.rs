@@ -18,13 +18,12 @@ pub(crate) fn is_http<R: Read>(rb: &ReaderBuf<R>) -> bool {
     // fine.
     let buf = rb.buf();
     if buf.len() >= 5 {
-        if let Ok(method) = str::from_utf8(&buf[..5]) {
-            match method {
-                // From https://developer.mozilla.org/fr/docs/Web/HTTP/Methods
-                "GET /" | "HEAD " | "POST " | "PUT /" | "DELET" | "CONNE" | "OPTIO" | "TRACE"
-                | "PATCH" => return true,
-                _ => (),
-            }
+        // From https://developer.mozilla.org/fr/docs/Web/HTTP/Methods
+        if let Ok(
+            "GET /" | "HEAD " | "POST " | "PUT /" | "DELET" | "CONNE" | "OPTIO" | "TRACE" | "PATCH",
+        ) = str::from_utf8(&buf[..5])
+        {
+            return true;
         }
     }
     false
