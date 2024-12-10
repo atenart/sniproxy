@@ -1,0 +1,25 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install the Rust toolchain
+      run: |
+        rustup override set nightly
+        rustup update nightly
+        rustup component add rustfmt clippy
+
+    - name: Check coding style
+      run: cargo fmt --check
+
+    - name: Run linter
+      run: cargo clippy -- -D warnings
+
+    - name: Unit tests
+      run: cargo test --verbose
