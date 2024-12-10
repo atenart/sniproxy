@@ -47,7 +47,7 @@ impl Tls {
         // Loop while we have potential valid extension headers.
         // https://www.rfc-editor.org/rfc/rfc8446#section-4.2
         let mut tls = Tls::default();
-        while len >= 2 {
+        while len >= 4 {
             // Extension type: u16
             // Vector size:    u16
             let header = reader.read_as::<[u8; 4]>()?;
