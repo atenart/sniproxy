@@ -65,9 +65,9 @@ impl Tls {
                 );
             }
 
-            // Extension is empty.
-            if len == 0 {
-                bail!("Invalid extension: len is null");
+            // Extension is empty, can happen e.g. on session_ticket
+            if size == 0 {
+                continue;
             }
 
             // Read the extension data. Even if we do not support the extension, we can't seek as
