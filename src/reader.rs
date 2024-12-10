@@ -1,4 +1,4 @@
-use std::{cmp, io::Read, mem, ptr};
+use std::{cmp, io::Read, mem};
 
 use anyhow::{bail, Result};
 
@@ -48,9 +48,7 @@ impl<R: Read> ReaderBuf<R> {
 
     /// Unwraps the inner reader.
     pub(crate) fn into_inner(self) -> R {
-        let inner = unsafe { ptr::read(&self.inner) };
-        mem::forget(self);
-        inner
+        self.inner
     }
 
     /// Get a reference to the inner reader.
