@@ -1,0 +1,30 @@
+name: Build and push a container image
+
+on: [workflow_dispatch]
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build image
+      id: build_image
+      uses: redhat-actions/buildah-build@v2
+      with:
+        containerfiles: Containerfile
+        image: sniproxy
+        tags: "latest"
+
+    - name: Push image
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ steps.build_image.outputs.image }}
+        tags: ${{ steps.build_image.outputs.tags }}
+        registry: ghcr.io/${{ github.repository_owner }}
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
