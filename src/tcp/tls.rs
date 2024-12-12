@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, info};
 
 use crate::{
     config::{self, Config},
@@ -41,7 +41,8 @@ pub(crate) async fn handle_stream(config: Arc<Config>, stream: TcpStream) -> Res
         // None was present, which is valid. But we can't do anything with that message.
         None => {
             tls::alert(rb.get_mut(), tls::AlertDescription::UnrecognizedName)?;
-            bail!("No SNI hostname in message");
+            info!("No SNI hostname in message");
+            return Ok(());
         }
     };
     debug!("Found SNI {hostname} in TLS handshake");
