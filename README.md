@@ -18,7 +18,7 @@ latter rewritten in [Rust](https://www.rust-lang.org).
 ```shell
 $ podman run --name sniproxy -p 80:80/tcp -p 443:443/tcp \
      -v $(pwd)/sniproxy.yaml:/sniproxy.yaml:ro \
-     atenart/sniproxy:latest
+     ghcr.io/atenart/sniproxy:latest
 ```
 
 The above works with Docker too, just replace `podman` with `docker`.
