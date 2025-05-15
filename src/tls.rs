@@ -304,7 +304,7 @@ impl Tls {
 
         // Check we won't go past the buffer.
         if cursor + size > len {
-            println!("{} + {} > {}", cursor, size, len);
+            println!("{cursor} + {size} > {len}");
             bail!("Reached the end of the ALPN extension buffer while processing");
         }
 
