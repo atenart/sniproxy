@@ -7,3 +7,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      add-deps:
+        patterns: ["*"]
