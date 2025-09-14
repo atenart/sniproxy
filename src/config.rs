@@ -1,7 +1,8 @@
 use std::{
     cmp, fmt, fs,
-    net::{IpAddr, SocketAddr, ToSocketAddrs},
+    net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
+    str::FromStr,
 };
 
 use anyhow::{anyhow, bail, Result};
@@ -236,6 +237,8 @@ pub(crate) struct Backend {
     pub(crate) address: String,
     /// HAProxy PROXY protocol. Disable: None, v1: Some(1), v2: Some(2).
     pub(crate) proxy_protocol: Option<u8>,
+    /// Nat46 Prefix. Disable: None, nat46: /96 prefix with port 0.
+    pub(crate) nat46_prefix: Option<Nat46Address>,
 }
 
 impl Backend {
@@ -244,6 +247,112 @@ impl Backend {
             .to_socket_addrs()?
             .next()
             .ok_or_else(|| anyhow!("Could not convert {} to an IP:port pair", self.address))
+    }
+}
+
+/// IPv6 address prefix and optional scope ID for nat46 mapping.
+#[derive(Debug)]
+pub(crate) struct Nat46Address {
+    /// V6 address prefix
+    pub(crate) address: std::net::Ipv6Addr,
+    /// V6 Address Scope
+    pub(crate) scope_id: u32,
+}
+
+impl Nat46Address {
+    /// Convert ifname to scope_id
+    #[cfg(not(test))]
+    fn if_nametoindex(if_name: &str) -> std::io::Result<u32> {
+        if if_name.len() > libc::IF_NAMESIZE {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "interface name to long",
+            ));
+        }
+
+        let mut ifname_c = [0u8; libc::IF_NAMESIZE];
+        (&mut ifname_c[..if_name.len()]).copy_from_slice(if_name.as_bytes());
+
+        let scope_id = unsafe { libc::if_nametoindex(ifname_c.as_ptr().cast()) };
+
+        if scope_id != 0 {
+            Ok(scope_id)
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+
+    #[cfg(test)]
+    fn if_nametoindex(if_name: &str) -> std::io::Result<u32> {
+        match if_name {
+            "eth0" => Ok(2),
+            "eth1" => Ok(3),
+            _ => Err(std::io::Error::from_raw_os_error(libc::ENODEV)),
+        }
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Nat46Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct Nat46AddressVisitor;
+
+        impl<'a> de::Visitor<'a> for Nat46AddressVisitor {
+            type Value = Nat46Address;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("A string containing a ipv6 /96 prefix and optional scope id")
+            }
+
+            fn visit_str<E>(self, mut s: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let mut scope_str: Option<&str> = None;
+                let mut len_str: Option<&str> = None;
+
+                if let Some((ip, rest)) = s.split_once("%") {
+                    s = ip;
+                    if let Some((scope, len)) = rest.split_once("/") {
+                        scope_str = Some(scope);
+                        len_str = Some(len);
+                    } else {
+                        scope_str = Some(rest);
+                    }
+                } else if let Some((ip, len)) = s.split_once("/") {
+                    s = ip;
+                    len_str = Some(len);
+                }
+
+                let mut scope_id = 0;
+                if let Some(scope_str) = scope_str {
+                    if let Ok(scope) = scope_str.parse::<u32>() {
+                        scope_id = scope;
+                    } else {
+                        scope_id =
+                            Nat46Address::if_nametoindex(scope_str).map_err(|e| E::custom(e))?;
+                    }
+                }
+
+                if let Some(len_str) = len_str
+                    && let len = len_str.parse::<u32>().map_err(|e| E::custom(e))?
+                    && len > 96
+                {
+                    return Err(E::custom(format!(
+                        "Prefix len {len} is to small as nat46 prefix"
+                    )));
+                }
+
+                Ok(Nat46Address {
+                    address: Ipv6Addr::from_str(s).map_err(|e| E::custom(e))?,
+                    scope_id,
+                })
+            }
+        }
+
+        deserializer.deserialize_str(Nat46AddressVisitor)
     }
 }
 
@@ -354,6 +463,18 @@ routes:
         "
         )
         .is_err());
+        assert!(
+            Config::from_str(
+                "
+routes:
+  - domains:
+      - example.net
+    backend:
+      address: \"[abc::]:123\"
+      nat46_prefix: \"abcd::%noif\""
+            )
+            .is_err()
+        );
 
         // Config with a route but not backend.
         assert!(Config::from_str(
@@ -465,6 +586,7 @@ routes:
     http_redirect: false
     backend:
       address: \"[1234::42:1]:10443\"
+      nat46_prefix: \"1234::%eth0/96\"
     allowed_ranges:
       - 10.0.42.0/27
         ",
@@ -531,6 +653,28 @@ routes:
             "[1234::42:1]:10443"
         );
         assert!(route.backend.as_ref().unwrap().proxy_protocol.is_none());
+        assert_eq!(
+            &route
+                .backend
+                .as_ref()
+                .unwrap()
+                .nat46_prefix
+                .as_ref()
+                .unwrap()
+                .address,
+            &"1234::".parse::<Ipv6Addr>().unwrap()
+        );
+        assert_eq!(
+            route
+                .backend
+                .as_ref()
+                .unwrap()
+                .nat46_prefix
+                .as_ref()
+                .unwrap()
+                .scope_id,
+            2
+        );
         assert_eq!(route.http_redirect, false);
         assert!(route.alpn_challenge_backend.is_none());
         assert_eq!(route.alpn_challenge_bypass_acl, false);
