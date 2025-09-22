@@ -290,6 +290,29 @@ impl Nat46Address {
             _ => Err(std::io::Error::from_raw_os_error(libc::ENODEV)),
         }
     }
+
+    pub(crate) fn to_sockadr_in6(&self) -> libc::sockaddr_in6 {
+        libc::sockaddr_in6 {
+            sin6_family: libc::AF_INET6 as _,
+            sin6_flowinfo: 0,
+            sin6_port: 0,
+            sin6_scope_id: self.scope_id,
+            sin6_addr: libc::in6_addr {
+                s6_addr: self.address.octets(),
+            },
+        }
+    }
+
+    pub(crate) fn to_sockaddr_in6_natted(
+        &self,
+        peer_addr: &std::net::SocketAddrV4,
+    ) -> libc::sockaddr_in6 {
+        let mut in6 = self.to_sockadr_in6();
+        in6.sin6_port = peer_addr.port().to_be();
+        (&mut in6.sin6_addr.s6_addr[16 - 4..]).copy_from_slice(&peer_addr.ip().octets());
+
+        in6
+    }
 }
 
 impl<'de> de::Deserialize<'de> for Nat46Address {

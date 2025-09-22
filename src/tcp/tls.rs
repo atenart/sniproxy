@@ -1,17 +1,20 @@
 use std::{
+    hint::unreachable_unchecked,
     io::{BufWriter, Write},
-    net::TcpStream,
+    net::{SocketAddr, SocketAddrV4, TcpStream},
+    os::fd::{FromRawFd, IntoRawFd},
     sync::Arc,
     time::Duration,
 };
 
 use anyhow::{Result, bail};
-use log::{debug, info};
+use log::{debug, info, trace};
 
 use crate::{
-    config::{self, Config},
+    config::{self, Config, Nat46Address},
     context, http, proxy_protocol,
     reader::ReaderBuf,
+    tcp::socket::Socket6,
     tls::{self, Tls},
 };
 
@@ -75,8 +78,12 @@ pub(crate) async fn handle_stream(config: Arc<Config>, stream: TcpStream) -> Res
     );
 
     // Connect to the backend.
-    let conn = match TcpStream::connect_timeout(&backend.to_socket_addr()?, Duration::from_secs(3))
-    {
+    let conn = match tcp_connect_timeout(
+        &backend.to_socket_addr()?,
+        Duration::from_secs(3),
+        &backend.nat46_prefix,
+        rb.get_ref().peer_addr()?,
+    ) {
         Ok(conn) => conn,
         Err(e) => {
             tls::alert(rb.get_mut(), tls::AlertDescription::InternalError)?;
@@ -112,4 +119,49 @@ pub(crate) async fn handle_stream(config: Arc<Config>, stream: TcpStream) -> Res
 
     super::tcp::proxy(rb.into_inner(), conn).await?;
     Ok(())
+}
+
+fn tcp_connect_timeout(
+    addr: &SocketAddr,
+    timeout: std::time::Duration,
+    nat46_prefix: &Option<Nat46Address>,
+    peer_addr: SocketAddr,
+) -> std::io::Result<TcpStream> {
+    // Guard check for unsuported freebind configuration. Fallback to std
+    if !addr.is_ipv6() || nat46_prefix.is_none() {
+        trace!("Not doing nat46");
+        return TcpStream::connect_timeout(addr, timeout);
+    }
+
+    // SAFETY: checked above to be non null
+    let nat46_prefix = unsafe { nat46_prefix.as_ref().unwrap_unchecked() };
+    // SAFETY: checked above to be V4
+    let peer_addr = match peer_addr {
+        SocketAddr::V4(v) => v,
+        SocketAddr::V6(v) if matches!(v.ip().to_ipv4_mapped(), Some(_ip)) => {
+            let ip = unsafe { v.ip().to_ipv4_mapped().unwrap_unchecked() };
+            SocketAddrV4::new(ip, v.port())
+        }
+        _ => {
+            trace!("Not doing nat46");
+            return TcpStream::connect_timeout(addr, timeout);
+        }
+    };
+    // SAFETY: checked above to be V6
+    let addr = match addr {
+        SocketAddr::V6(v) => v,
+        _ => unsafe { unreachable_unchecked() },
+    };
+
+    let nat_addr = nat46_prefix.to_sockaddr_in6_natted(&peer_addr);
+
+    let mut socket = Socket6::new()?;
+    socket.setsockopt(libc::SOL_IPV6, libc::IPV6_FREEBIND, 1u32)?;
+    socket.setsockopt(libc::SOL_SOCKET, libc::SO_REUSEADDR, 1u32)?;
+
+    socket.bind(nat_addr)?;
+
+    socket.connect_timeout(addr, timeout)?;
+
+    Ok(unsafe { TcpStream::from_raw_fd(socket.into_raw_fd()) })
 }
