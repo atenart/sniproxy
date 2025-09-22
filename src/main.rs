@@ -1,8 +1,8 @@
 use std::{path::PathBuf, sync::Arc, thread};
 
-use anyhow::{bail, Result};
-use clap::{builder::PossibleValuesParser, Parser};
-use log::{error, LevelFilter};
+use anyhow::{Result, bail};
+use clap::{Parser, builder::PossibleValuesParser};
+use log::{LevelFilter, error};
 use once_cell::sync::OnceCell;
 use tokio::runtime;
 

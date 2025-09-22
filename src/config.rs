@@ -5,10 +5,10 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use ipnet::IpNet;
 use regex::RegexSet;
-use serde::{de, Deserialize};
+use serde::{Deserialize, de};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -413,56 +413,66 @@ mod tests {
         assert!(Config::from_str("").is_err());
 
         // Config with a backend but no domain.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - backend:
       address: 127.0.0.1:443
         "
-        )
-        .is_err());
+            )
+            .is_err()
+        );
 
         // Configs with a malformed backend.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     backend:
       address: 127.0.0.1
         "
-        )
-        .is_err());
-        assert!(Config::from_str(
-            "
+            )
+            .is_err()
+        );
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     backend:
       address: :443
         "
-        )
-        .is_err());
-        assert!(Config::from_str(
-            "
+            )
+            .is_err()
+        );
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     backend:
       address: foobar
         "
-        )
-        .is_err());
-        assert!(Config::from_str(
-            "
+            )
+            .is_err()
+        );
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     backend:
       address: foo:bar:443
         "
-        )
-        .is_err());
+            )
+            .is_err()
+        );
         assert!(
             Config::from_str(
                 "
@@ -477,14 +487,16 @@ routes:
         );
 
         // Config with a route but not backend.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
         "
-        )
-        .is_err());
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -521,40 +533,46 @@ routes:
         assert_eq!(route.is_allowed(&"[1111::1]:12345".parse().unwrap()), true);
 
         // Config with an IPv6 backend.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     backend:
       address: \"[::1]:443\"
         ",
-        )
-        .is_ok());
+            )
+            .is_ok()
+        );
 
         // Config with an alpn challenge backend only.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     alpn_challenge_backend:
       address: 127.0.0.1:443
         ",
-        )
-        .is_ok());
+            )
+            .is_ok()
+        );
 
         // Config with an hostname as a backend.
-        assert!(Config::from_str(
-            "
+        assert!(
+            Config::from_str(
+                "
 routes:
   - domains:
       - example.net
     alpn_challenge_backend:
       address: foo.example.net:443
         ",
-        )
-        .is_ok());
+            )
+            .is_ok()
+        );
     }
 
     #[test]
