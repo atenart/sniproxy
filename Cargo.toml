@@ -1,7 +1,7 @@
 [package]
 name = "sniproxy"
 license = "GPL-2.0+"
-authors = ["Antoine Tenart <antoine.tenart@ack.tf>"]
+authors = ["Antoine Tenart <antoine+dev@tenart.fr>"]
 version = "0.1.0"
 edition = "2021"
 
