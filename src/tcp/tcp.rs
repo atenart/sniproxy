@@ -10,11 +10,12 @@ use anyhow::Result;
 use log::{debug, error};
 
 use crate::{
+    RUNTIME,
     config::Config,
     context::*,
     runtime,
     tls::{self, alert},
-    zc, RUNTIME,
+    zc,
 };
 
 /// Starts a TCP server on `bind` and use the given `handle_stream` function to

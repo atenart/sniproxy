@@ -3,7 +3,7 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// Writes a `version` HAProxy protocol header.
 pub(crate) fn write_header<W>(

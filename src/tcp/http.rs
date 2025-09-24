@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::{config::Config, context, http, reader::ReaderBuf};
 

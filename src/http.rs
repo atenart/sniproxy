@@ -4,7 +4,7 @@ use std::{
     str,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use log::info;
 
 use crate::{config::Config, reader::ReaderBuf};

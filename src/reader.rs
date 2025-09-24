@@ -1,6 +1,6 @@
 use std::{cmp, io::Read, mem};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// Fast buffer reader never removing read data from its internal buffer. It
 /// does not offer traditional accessors from io::Read and instead returns
