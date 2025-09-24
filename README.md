@@ -178,5 +178,5 @@ Thank you for considering contributing to _SNIProxy_! :tada:
 - We strictly follow the Rust coding style as enforced by `rustfmt`.
 - Please document new code (functions, structures, members, etc).
 - Add unit tests if applicable.
-- Pull requests require the [CI](.github/workflows/ci.yaml) to pass for being
+- Pull requests require the [CI](.github/workflows/ci.yaml) to pass to be
   merged.
