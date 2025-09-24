@@ -551,4 +551,28 @@ routes:
             false
         );
     }
+
+    #[test]
+    fn multiple_matches() {
+        let cfg = Config::from_str(
+            "
+routes:
+  - domains:
+      - first.example.net
+    backend:
+      address: 127.0.0.1:443
+  - domains:
+      - \"*.example.net\"
+    backend:
+      address: 127.0.0.2:443
+        ",
+        )
+        .unwrap();
+
+        let route = cfg.get_route("first.example.net").unwrap();
+        assert_eq!(route.backend.as_ref().unwrap().address, "127.0.0.1:443");
+
+        let route = cfg.get_route("other.example.net").unwrap();
+        assert_eq!(route.backend.as_ref().unwrap().address, "127.0.0.2:443");
+    }
 }

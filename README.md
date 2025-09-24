@@ -87,6 +87,11 @@ routes:
       address: "1.2.3.4:443"
 ```
 
+Domains are matched against routes in the order they are defined in the
+configuration file, from top to bottom. The first route matching a domain is
+used even if a later one also matches, which can be the case with regular
+expressions.
+
 ### Optional parameters
 
 _SNIProxy_ has a built-in ACL logic and can block and allow connections based on
