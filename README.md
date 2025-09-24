@@ -9,6 +9,9 @@ cannot decrypt the TLS traffic that goes through.
 _SNIProxy_ is meant to be simple to use and configure, with sane defaults and
 few parameters.
 
+This is developed and maintained as time allows on a best effort basis, please
+have realistic expectations.
+
 A first version was written in [Go](https://go.dev) and can be found in the
 [archive/go](https://github.com/atenart/sniproxy/tree/archive/go) branch. It was
 latter rewritten in [Rust](https://www.rust-lang.org).
@@ -165,3 +168,15 @@ routes:
       address: "alpn-backend:8080"
       proxy_protocol: 1
 ```
+
+## Contribution guidelines
+
+Thank you for considering contributing to _SNIProxy_! :tada:
+
+- Make sure all commits are
+  [signed off](https://www.kernel.org/doc/html/latest/process/submitting-patches.html?highlight=signed%20off#developer-s-certificate-of-origin-1-1).
+- We strictly follow the Rust coding style as enforced by `rustfmt`.
+- Please document new code (functions, structures, members, etc).
+- Add unit tests if applicable.
+- Pull requests require the [CI](.github/workflows/ci.yaml) to pass for being
+  merged.
