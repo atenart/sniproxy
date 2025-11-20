@@ -5,10 +5,10 @@ use std::{
     os::fd::{AsRawFd, RawFd},
     pin::Pin,
     ptr,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use tokio::io::AsyncWriteExt;
 
 // Use 1M pipe size as this is the default max pipe buffer size

@@ -3,7 +3,7 @@ use std::{io::Write, sync::Mutex};
 use anyhow::Result;
 use log::{LevelFilter, Metadata, Record};
 use termcolor::{BufferedStandardStream, Color, ColorChoice, ColorSpec, WriteColor};
-use time::{macros::format_description, OffsetDateTime};
+use time::{OffsetDateTime, macros::format_description};
 
 use crate::context::REQ_CONTEXT;
 
